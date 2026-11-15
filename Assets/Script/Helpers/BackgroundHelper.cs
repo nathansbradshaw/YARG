@@ -43,6 +43,19 @@ namespace YARG.Helpers
                 var allAssets = shaderBundle.LoadAllAssets<Shader>();
                 foreach (var shader in allAssets)
                 {
+                    // Different shader assets can share a name. Prefer a supported
+                    // variant, without aborting venue loading on duplicate names.
+                    if (metalShaders.TryGetValue(shader.name, out var existingShader))
+                    {
+                        if (!existingShader.isSupported && shader.isSupported)
+                        {
+                            metalShaders[shader.name] = shader;
+                        }
+
+                        YargLogger.LogFormatDebug("Duplicate Metal shader {0}", shader.name);
+                        continue;
+                    }
+
                     metalShaders.Add(shader.name, shader);
                 }
             }
