@@ -10,6 +10,7 @@ namespace YARG.Input
         {
             return Mode switch
             {
+                GameMode.Dance or GameMode.FourKey => SetDefaultDanceBindings(keyboard),
                 GameMode.FiveFretGuitar => SetDefaultFiveFretBindings(keyboard),
                 GameMode.SixFretGuitar => SetDefaultSixFretBindings(keyboard),
 
@@ -44,6 +45,25 @@ namespace YARG.Input
 
             AddBinding(GuitarAction.Whammy, keyboard.semicolonKey);
 
+            return true;
+        }
+
+        private bool SetDefaultDanceBindings(Keyboard keyboard)
+        {
+            if (Mode == GameMode.Dance)
+            {
+                AddBinding(YARG.Core.Dance.DanceAction.Left, keyboard.leftArrowKey);
+                AddBinding(YARG.Core.Dance.DanceAction.Down, keyboard.downArrowKey);
+                AddBinding(YARG.Core.Dance.DanceAction.Up, keyboard.upArrowKey);
+                AddBinding(YARG.Core.Dance.DanceAction.Right, keyboard.rightArrowKey);
+            }
+            else
+            {
+                AddBinding(YARG.Core.Dance.DanceAction.Left, keyboard.dKey);
+                AddBinding(YARG.Core.Dance.DanceAction.Down, keyboard.fKey);
+                AddBinding(YARG.Core.Dance.DanceAction.Up, keyboard.jKey);
+                AddBinding(YARG.Core.Dance.DanceAction.Right, keyboard.kKey);
+            }
             return true;
         }
 

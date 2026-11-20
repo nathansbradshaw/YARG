@@ -14,6 +14,8 @@ namespace YARG.Helpers.Extensions
         {
             return instrument switch
             {
+                Instrument.Dance => SortAttribute.Dance,
+                Instrument.FourKey => SortAttribute.FourKey,
                 Instrument.FiveFretGuitar     => SortAttribute.FiveFretGuitar,
                 Instrument.FiveFretBass       => SortAttribute.FiveFretBass,
                 Instrument.FiveFretRhythm     => SortAttribute.FiveFretRhythm,
@@ -43,6 +45,8 @@ namespace YARG.Helpers.Extensions
         {
             return attribute switch
             {
+                SortAttribute.Dance => Instrument.Dance,
+                SortAttribute.FourKey => Instrument.FourKey,
                 SortAttribute.FiveFretGuitar => Instrument.FiveFretGuitar,
                 SortAttribute.FiveFretBass   => Instrument.FiveFretBass,
                 SortAttribute.FiveFretRhythm => Instrument.FiveFretRhythm,
@@ -72,6 +76,8 @@ namespace YARG.Helpers.Extensions
         {
             return instrument switch
             {
+                Instrument.Dance => "drums",
+                Instrument.FourKey => "keys",
                 Instrument.FiveFretGuitar     => "guitar",
                 Instrument.FiveFretBass       => "bass",
                 Instrument.FiveFretRhythm     => "rhythm",

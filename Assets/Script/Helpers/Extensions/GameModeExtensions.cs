@@ -12,6 +12,8 @@ namespace YARG.Helpers.Extensions
         {
             return instrument switch
             {
+                GameMode.Dance => "drums",
+                GameMode.FourKey => "keys",
                 GameMode.FiveFretGuitar => "guitar",
                 GameMode.SixFretGuitar  => "guitar",
 
@@ -99,6 +101,12 @@ namespace YARG.Helpers.Extensions
             };
 
             var possibleOptions = unconditionallyValidInAllModes;
+
+            if (gameMode is GameMode.Dance or GameMode.FourKey)
+            {
+                // Dance uses fixed judgments with the normal highway presets.
+                possibleOptions.RemoveAll(p => p.setting == ProfileSettingStrings.ENGINE_PRESET);
+            }
 
             if (gameMode is not GameMode.Vocals)
             {

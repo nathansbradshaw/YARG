@@ -232,6 +232,8 @@ namespace YARG.Menu.ScoreScreen
                         break;
                     }
                     case GameMode.ProKeys:
+                    case GameMode.Dance:
+                    case GameMode.FourKey:
                     {
                         card = Instantiate(_keysCardPrefab, _cardContainer);
                         ((ScoreCard<KeysStats>) card).Initialize(score.IsHighScore, score.Player, score.Stats as KeysStats, score.AverageMultiplier);
