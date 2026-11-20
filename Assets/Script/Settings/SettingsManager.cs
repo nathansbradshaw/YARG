@@ -242,6 +242,7 @@ namespace YARG.Settings
                 nameof(Settings.BandComboTypeSetting),
                 nameof(Settings.CustomVocalsCharacter),
                 nameof(Settings.ShuffleVenueVocalist),
+                nameof(Settings.ShuffleCustomBand),
                 nameof(Settings.DataStreamEnable),
                 nameof(Settings.SaveScoresWithBots),
                 new HeaderMetadata("Accessibility"),

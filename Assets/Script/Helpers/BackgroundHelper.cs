@@ -79,11 +79,16 @@ namespace YARG.Helpers
                         // We found shader from Yarground
                         material.shader = shader;
                     }
-                    else
+                    else if (!material.shader.isSupported)
                     {
                         YargLogger.LogFormatDebug("Did not find bundled shader {0}", shaderName);
-                        // Fallback to try to find among builtin shaders
-                        material.shader = Shader.Find(shaderName);
+                        // Native Mac character bundles already contain Metal shaders.
+                        // Only replace an unsupported shader, and never assign a null fallback.
+                        var fallback = Shader.Find(shaderName);
+                        if (fallback != null && fallback.isSupported)
+                        {
+                            material.shader = fallback;
+                        }
                     }
                 }
             }
