@@ -83,7 +83,7 @@ namespace YARG.Gameplay.Player
             {
                 _receptors[lane] = Skin.Create(transform, "YACE arrow receptor", Skin.Receptor, NotePool.Prefab.layer);
                 _receptors[lane].transform.localPosition = new Vector3(-.75f + .5f * lane, 0, Skin.Data.ReceptorZ);
-                _receptors[lane].transform.localRotation = Skin.Rotation(lane, player.CameraPreset.Rotation);
+                _receptors[lane].transform.localRotation = Skin.Rotation(lane);
             }
             _noteTemplate = CreateNoteTemplate();
             NotePool.SetPrefabAndReset(_noteTemplate);
@@ -114,7 +114,7 @@ namespace YARG.Gameplay.Player
             if (Engine == null) return;
             UpdateUnitsPerBeat();
             TrackView.UpdateHUDPosition(HighwayIndex, HighwayCount);
-            TrackMaterial.SetTrackScroll(Engine.VisualBeat(time), -UnitsPerBeat);
+            TrackMaterial.SetTrackScroll(Engine.VisualBeat(time), UnitsPerBeat);
             TrackMaterial.GrooveMode = false;
             TrackMaterial.StarpowerMode = false;
             var stats = Engine.Stats;
@@ -147,8 +147,8 @@ namespace YARG.Gameplay.Player
                     _hitColors[visual.Render.Lane] = DanceHighwaySkin.NoteColor(Engine.Chart.Notes[visual.Index].Beat);
                 }
             }
-            int count = Engine.Render(time, (Skin.Data.ReceptorZ - ZeroFadePosition - 1) / UnitsPerBeat,
-                (Skin.Data.ReceptorZ - STRIKE_LINE_POS + 1) / UnitsPerBeat, _visible);
+            int count = Engine.Render(time, -2 / UnitsPerBeat,
+                (ZeroFadePosition + 4 - Skin.Data.ReceptorZ) / UnitsPerBeat, _visible);
             Array.Clear(_held, 0, _held.Length);
             _visibleIndices.Clear();
             for (int i = 0; i < count; i++) _visibleIndices.Add(_visible[i].Index);
@@ -182,7 +182,7 @@ namespace YARG.Gameplay.Player
                 bool active = _held[lane] || _pressed[lane];
                 Color color = flash > 0 ? _hitColors[lane] : active ? new Color32(241, 215, 140, 255) : new Color32(147, 166, 187, 255);
                 Skin.Paint(_receptors[lane], color, 1, active ? .65f : flash * flash);
-                _receptors[lane].transform.localRotation = Skin.Rotation(lane, Player.CameraPreset.Rotation);
+                _receptors[lane].transform.localRotation = Skin.Rotation(lane);
                 _receptors[lane].transform.localScale = Vector3.one * (1 + pulse + flash * .12f);
             }
         }

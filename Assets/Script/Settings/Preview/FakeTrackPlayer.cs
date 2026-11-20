@@ -269,7 +269,7 @@ namespace YARG.Settings.Preview
         private const double SPAWN_FREQ = 0.2;
 
         private double SpawnTimeOffset => DanceSkin == null ? (TrackPlayer.NOTE_SPAWN_OFFSET + -TrackPlayer.STRIKE_LINE_POS) / NOTE_SPEED
-            : (DanceSkin.Data.ReceptorZ - TrackPlayer.STRIKE_LINE_POS + 1) / (NOTE_SPEED * DanceSkin.Data.ScrollFactor * 2);
+            : (3 - DanceSkin.Data.ReceptorZ) / (NOTE_SPEED * DanceSkin.Data.ScrollFactor * 2);
 
         [SerializeField]
         private CameraPositioner _cameraPositioner;
@@ -377,7 +377,7 @@ namespace YARG.Settings.Preview
             _cameraPositioner.Initialize(cameraPreset);
             if (DanceSkin != null)
                 for (int lane = 0; lane < 4; lane++)
-                    _danceReceptors[lane].transform.localRotation = DanceSkin.Rotation(lane, cameraPreset.Rotation);
+                    _danceReceptors[lane].transform.localRotation = DanceSkin.Rotation(lane);
 
             var camera = _cameraPositioner.GetComponent<Camera>();
             var highwayRenderer = camera.GetComponent<HighwayCameraRendering>();
@@ -415,7 +415,7 @@ namespace YARG.Settings.Preview
                 noteObj.EnableFromPool();
             }
 
-            _trackMaterial.SetTrackScroll(PreviewTime, DanceSkin == null ? NOTE_SPEED : -NOTE_SPEED * DanceSkin.Data.ScrollFactor * 2);
+            _trackMaterial.SetTrackScroll(PreviewTime, DanceSkin == null ? NOTE_SPEED : NOTE_SPEED * DanceSkin.Data.ScrollFactor * 2);
         }
 
         private void OnDestroy()

@@ -95,7 +95,7 @@ namespace YARG.Settings.Preview
             var highwayPreset = PresetsTab.GetLastSelectedPreset(CustomContentManager.HighwayPresets);
             if (_danceGlyph != null)
             {
-                _danceGlyph.transform.localRotation = FakeTrackPlayer.DanceSkin.Rotation(NoteRef.Fret - 1, cameraPreset.Rotation);
+                _danceGlyph.transform.localRotation = FakeTrackPlayer.DanceSkin.Rotation(NoteRef.Fret - 1);
                 FakeTrackPlayer.DanceSkin.Paint(_danceGlyph, DanceHighwaySkin.NoteColor(NoteRef.Time * 2));
                 return;
             }

@@ -26,7 +26,7 @@ namespace YARG.Gameplay.Visuals
         {
             transform.localPosition = new Vector3(-.75f + Render.Lane * .5f, 0,
                 DanceNative.yarg_dance_position(Render.Head, Owner.NoteSpeed));
-            Glyph.transform.localRotation = Owner.Skin.Rotation(Render.Lane, Owner.Player.CameraPreset.Rotation);
+            Glyph.transform.localRotation = Owner.Skin.Rotation(Render.Lane);
             return true;
         }
 
@@ -42,7 +42,7 @@ namespace YARG.Gameplay.Visuals
             if (Render.Kind is 1 or 2)
             {
                 Sustain.gameObject.SetActive(true);
-                float length = -(Render.Tail - Render.Head) * Owner.UnitsPerBeat;
+                float length = (Render.Tail - Render.Head) * Owner.UnitsPerBeat;
                 Sustain.transform.localRotation = Quaternion.Euler(0, length < 0 ? 180 : 0, 0);
                 Sustain.Initialize(Mathf.Abs(length));
                 Sustain.SetState(Render.State == 3 ? SustainState.Hitting : SustainState.Waiting,

@@ -54,8 +54,7 @@ namespace YARG.Gameplay.Visuals
             _properties.SetFloat(GlowId, glow);
             renderer.SetPropertyBlock(_properties);
         }
-        public Quaternion Rotation(int lane, float cameraRotation) =>
-            Quaternion.Euler(cameraRotation - 90, 0, 0) * Quaternion.Euler(0, Data.Rotations[lane], 0);
+        public Quaternion Rotation(int lane) => Quaternion.Euler(0, Data.Rotations[lane], 0);
         public static Color NoteColor(double beat)
         {
             uint rgb = DanceNative.yarg_dance_color(beat);
