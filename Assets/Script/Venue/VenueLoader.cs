@@ -1,4 +1,6 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
+using System.Linq;
 using System.Collections.Generic;
 using UnityEngine;
 using YARG.Helpers;
@@ -18,6 +20,9 @@ namespace YARG.Venue
 
     public static class VenueLoader
     {
+        private static readonly List<string> _remainingGlobalVenues = new();
+        private static readonly HashSet<string> _knownGlobalVenues = new(StringComparer.Ordinal);
+        private static string _lastGlobalVenue;
         private static readonly string _venueFolder = Path.Combine(PathHelper.PersistentDataPath, "venue");
         private static readonly string _defaultVenue = Path.Combine(Application.streamingAssetsPath, "venue", "default.yarground");
         public static string VenueFolder
@@ -80,33 +85,65 @@ namespace YARG.Venue
                 filePaths.AddRange(Directory.EnumerateFiles(launcherVenueFolder, "*.yarground", PathHelper.SafeSearchOptions));
             }
 
+            filePaths = filePaths.Select(Path.GetFullPath).Distinct(StringComparer.Ordinal).ToList();
+
             while (filePaths.Count > 0)
             {
-                int index = Random.Range(0, filePaths.Count);
-                var file = filePaths[index];
-                switch (Path.GetExtension(file))
+                var file = TakeNextGlobalVenue(filePaths);
+                filePaths.Remove(file);
+                try
                 {
-                    case ".png":
-                    case ".jpg":
-                    case ".jpeg":
-                        var image = YARGImage.Load(file);
-                        if (image != null)
-                        {
-                            return new BackgroundResult(image);
-                        }
-                        break;
-                    case ".mp4":
-                    case ".mov":
-                    case ".webm":
-                        return new BackgroundResult(BackgroundType.Video, File.OpenRead(file));
-                    case ".yarground":
-                        return new BackgroundResult(BackgroundType.Yarground, File.OpenRead(file));
-                    default:
-                        filePaths.RemoveAt(index);
-                        break;
+                    switch (Path.GetExtension(file).ToLowerInvariant())
+                    {
+                        case ".png":
+                        case ".jpg":
+                        case ".jpeg":
+                            var image = YARGImage.Load(file);
+                            if (image != null)
+                            {
+                                YargLogger.LogFormatInfo("Selected global background {0}", Path.GetFileName(file));
+                                return new BackgroundResult(image);
+                            }
+                            break;
+                        case ".mp4":
+                        case ".mov":
+                        case ".webm":
+                        case ".yarground":
+                            var stream = File.OpenRead(file);
+                            YargLogger.LogFormatInfo("Selected global background {0}", Path.GetFileName(file));
+                            return new BackgroundResult(Path.GetExtension(file).Equals(".yarground", StringComparison.OrdinalIgnoreCase)
+                                ? BackgroundType.Yarground : BackgroundType.Video, stream);
+                    }
+                }
+                catch (IOException exception)
+                {
+                    YargLogger.LogException(exception, "Skipping unreadable global background");
+                }
+                catch (UnauthorizedAccessException exception)
+                {
+                    YargLogger.LogException(exception, "Skipping inaccessible global background");
                 }
             }
             return null;
+        }
+
+        // Visit every available background before repeating. Avoid repeating at cycle boundaries too.
+        private static string TakeNextGlobalVenue(List<string> available)
+        {
+            if (available.Count == 0) return null;
+            if (!_knownGlobalVenues.SetEquals(available))
+            {
+                _knownGlobalVenues.Clear();
+                _knownGlobalVenues.UnionWith(available);
+                _remainingGlobalVenues.Clear();
+            }
+            if (_remainingGlobalVenues.Count == 0) _remainingGlobalVenues.AddRange(_knownGlobalVenues);
+            var choices = _remainingGlobalVenues.Where(path => path != _lastGlobalVenue).ToList();
+            if (choices.Count == 0) choices.AddRange(_remainingGlobalVenues);
+            var selected = choices[UnityEngine.Random.Range(0, choices.Count)];
+            _remainingGlobalVenues.Remove(selected);
+            _lastGlobalVenue = selected;
+            return selected;
         }
 
 #nullable enable

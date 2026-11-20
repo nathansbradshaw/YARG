@@ -599,6 +599,7 @@ namespace YARG.Settings
             public OutputChannelSetting OutputChannelMetronome { get; } = new(-1, OutputChannelMetronomeCallback);
 
             public CustomCharacterSetting CustomVocalsCharacter { get; } = new(string.Empty, VenueCharacter.CharacterType.Vocals, CustomCharacterCallback);
+            public ToggleSetting ShuffleVenueVocalist { get; } = new(false);
             #endregion
 
             #region Helpers
