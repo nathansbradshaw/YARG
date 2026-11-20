@@ -15,7 +15,7 @@ stage without a serialized root, cleanup of an active notification tween,
 Hard-only difficulty fallback, Expert preference, missing bass, note lead-in,
 sustain duration, and a rest between notes using the actual guitar channel.
 
-Generate three controlled charts with the standard-library-only Rust tool:
+Generate four controlled charts with the standard-library-only Rust tool:
 
 ```sh
 rustc tools/venue_fixture_generator.rs -o /tmp/yarg-venue-fixtures
@@ -24,7 +24,8 @@ rustc tools/venue_fixture_generator.rs -o /tmp/yarg-venue-fixtures
 
 Use an isolated test song folder, scan it in YARG, and select a full-band venue.
 The charts contain Expert full-band, Hard-only full-band, and Expert guitar-only
-variants. Notes occur at 4–8, 12–20, and 24–33 seconds, with tempo changes from
+variants plus a **Venue Vocal Dynamics** MIDI chart with vocal phrases and
+full-band notes. Notes occur at 4–8, 12–20, and 24–33 seconds, with tempo changes from
 120 to 180 to 80 BPM. The supplied audio is only a timing carrier: these are
 deliberately synthetic charts, not transcriptions of the audio.
 

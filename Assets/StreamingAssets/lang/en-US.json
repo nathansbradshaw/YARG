@@ -1708,6 +1708,10 @@
             "CustomVocalsCharacter": {
                 "Name": "Custom Vocals Character",
                 "Description": "Select a custom vocals character to use in venues that support characters."
+            },
+            "ShuffleVenueVocalist": {
+                "Name": "Shuffle Lead Singer",
+                "Description": "Change the lead singer between songs using the venue's existing humanoid band members. A selected custom vocalist takes priority."
             }
         },
         "PresetType": {
