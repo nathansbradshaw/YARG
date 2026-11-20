@@ -204,6 +204,7 @@ namespace YARG.Input
                     new ButtonBinding("Dance.Down", 1),
                     new ButtonBinding("Dance.Up", 2),
                     new ButtonBinding("Dance.Right", 3),
+                    new IndividualButtonBinding("Guitar.StarPower", 4),
                 },
                 GameMode.FiveFretGuitar => CreateFiveFretGuitarBindings(),
                 GameMode.SixFretGuitar => CreateSixFretGuitarBindings(),

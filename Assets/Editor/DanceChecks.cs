@@ -22,7 +22,7 @@ namespace Editor
             foreach (var mode in new[] { GameMode.Dance, GameMode.FourKey })
             {
                 var controls = BindingCollection.CreateGameplayBindings(mode).ToArray();
-                if (controls.Length != 4) throw new Exception("Expected four independent dance buttons");
+                if (controls.Length != 5) throw new Exception("Expected four independent dance buttons and star power");
                 var instrument = mode.PossibleInstruments().Single();
                 if (instrument.ToNativeGameMode() != mode) throw new Exception("Profile instrument mismatch");
                 if (string.IsNullOrEmpty(instrument.ToResourceName()) || string.IsNullOrEmpty(mode.ToResourceName()))
@@ -49,12 +49,26 @@ namespace Editor
                 binds.SubscribeToGameplayInputs(mode, Capture);
                 binds.EnableInputs();
                 var keys = mode == GameMode.Dance
-                    ? new[] { Key.LeftArrow, Key.DownArrow, Key.UpArrow, Key.RightArrow }
-                    : new[] { Key.D, Key.F, Key.J, Key.K };
+                    ? new[] { Key.LeftArrow, Key.DownArrow, Key.UpArrow, Key.RightArrow, Key.RightShift }
+                    : new[] { Key.D, Key.F, Key.J, Key.K, Key.Space };
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(keys));
                 InputSystem.Update();
-                if (pressed.Count != 4) throw new Exception($"{mode}: expected four simultaneous independent keyboard inputs, got {pressed.Count}");
+                if (pressed.Count != 5 || !pressed.Contains(4)) throw new Exception($"{mode}: expected independent notes and star-power input, got {pressed.Count}");
                 binds.DisableInputs();
+                var legacy = binds.Serialize();
+                legacy.ModeMappings[mode].Bindings.Remove("Guitar.StarPower");
+                using var migrated = new ProfileBindings(new YargProfile { GameMode = mode }, legacy);
+                migrated.AddDevice(keyboard);
+                var power = migrated[mode].TryGetBindingByAction(4);
+                var powerKey = mode == GameMode.Dance ? keyboard.rightShiftKey : keyboard.spaceKey;
+                if (power == null || !power.ContainsControl(powerKey)) throw new Exception("Legacy Dance profile did not receive its new SP binding");
+                if (!migrated[mode].TryGetBindingByAction(0).ContainsControl(mode == GameMode.Dance ? keyboard.leftArrowKey : keyboard.dKey))
+                    throw new Exception("SP migration changed an existing note binding");
+                power.ClearAllBindings();
+                var savedUnbound = migrated.Serialize();
+                using var intentional = new ProfileBindings(new YargProfile { GameMode = mode }, savedUnbound);
+                intentional.AddDevice(keyboard);
+                if (intentional[mode].TryGetBindingByAction(4).ContainsControl(powerKey)) throw new Exception("Intentional SP unbind was overwritten");
             }
             finally { InputSystem.RemoveDevice(keyboard); }
         }

@@ -59,6 +59,10 @@ namespace YARG.Input
             foreach (var binding in _bindings)
             {
                 var serializedBind = binding.Serialize();
+                // An empty SP entry distinguishes an intentional unbind from a
+                // Dance profile saved before this action existed.
+                if (serializedBind is null && Mode is GameMode.Dance or GameMode.FourKey && binding.Action == 4)
+                    serializedBind = new SerializedControlBinding();
                 if (serializedBind is null)
                     continue;
 

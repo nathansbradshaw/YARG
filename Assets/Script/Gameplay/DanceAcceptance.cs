@@ -97,11 +97,16 @@ namespace YARG.Gameplay
                 (DanceHighwayNote Note, int Index, float Z)[] probes = null;
                 bool downwardFlowVerified = false;
                 bool highwayOrientationVerified = false;
+                bool solidArrowsVerified = false;
+                bool hitParticlesVerified = false;
                 var deadline = DateTime.UtcNow.AddSeconds(40);
                 while (manager != null && GlobalVariables.Instance.CurrentScene == SceneIndex.Gameplay)
                 {
                     if (DateTime.UtcNow > deadline) throw new TimeoutException("Gameplay did not reach results");
                     var time = manager.InputTime;
+                    var danceFields = manager.Players.OfType<DancePlayer>().ToArray();
+                    solidArrowsVerified |= danceFields.Length == 2 && danceFields.All(p => p.HasSolidArrows);
+                    hitParticlesVerified |= danceFields.Length == 2 && danceFields.All(p => p.HitBurstCount > 0 && p.PeakHitParticles > 0);
                     if (probes == null && manager.VisualTime >= 3)
                     {
                         var arrows = FindObjectsByType<DanceHighwayNote>(FindObjectsSortMode.None);
@@ -120,15 +125,16 @@ namespace YARG.Gameplay
                     int mask = 0;
                     foreach (var note in keyboardNotes)
                         if (note.Judgable && note.Kind != "mine" && time >= note.Time && time < Math.Max(note.EndTime + .02, note.Time + .15)) mask |= 1 << note.Lane;
+                    if (time >= 8.1 && time < 8.3) mask |= 1 << 4;
                     if (keyboard != null && mask != previousMask)
                     {
-                        var keys = new[] { Key.D, Key.F, Key.J, Key.K };
+                        var keys = new[] { Key.D, Key.F, Key.J, Key.K, Key.Space };
                         InputSystem.QueueStateEvent(keyboard, new KeyboardState(keys.Where((_, lane) => (mask & 1 << lane) != 0).ToArray()));
                         previousMask = mask;
                     }
                     // PNG capture can block input injection. The visual run uses
                     // bots; the keyboard run captures during the fixture lead-in.
-                    if (!captured && manager.VisualTime >= (visualRun ? 6 : 1))
+                    if (!captured && manager.VisualTime >= (visualRun ? 9.08 : 1))
                     {
                         var fields = manager.Players.OfType<DancePlayer>().ToArray();
                         if (fields.Length != 2 || fields.Any(p => !p.HasVisibleField)) throw new Exception("Dance profiles are not using the normal four-receptor highways");
@@ -143,17 +149,25 @@ namespace YARG.Gameplay
                 await UniTask.Delay(1000);
                 var scores = GlobalVariables.State.ScoreScreenStats.Value.PlayerScores;
                 if (!downwardFlowVerified || !highwayOrientationVerified) throw new Exception("Arrow motion/orientation was not verified");
+                if (!solidArrowsVerified || !hitParticlesVerified) throw new Exception("Solid arrow meshes and live hit particles were not verified on both highways");
                 File.WriteAllText(Path.Combine(output, "player-stats.json"), JsonConvert.SerializeObject(scores.Select(s => new {
                     instrument = s.Player.Profile.CurrentInstrument.ToString(), score = s.Stats.TotalScore,
                     hits = s.Stats.NotesHit, total = s.Stats.TotalNotes }), Formatting.Indented));
                 if (scores.Length != 5 || scores.Any(s => s.Stats.NotesHit == 0)) throw new Exception("Mixed-band results are incomplete");
                 var keyboardScore = scores.Single(s => s.Player.Profile.CurrentInstrument == Instrument.FourKey);
+                var danceScores = scores.Where(s => s.Player.Profile.CurrentInstrument is Instrument.Dance or Instrument.FourKey).ToArray();
+                if (danceScores.Any(s => s.Stats.StarPowerActivationCount < 1 || s.Stats.StarPowerScore <= 0 || s.Stats.StarPowerPhrasesHit < 2))
+                    throw new Exception("Dance/4-key did not earn, activate and score star power");
+                if (danceScores.Any(s => s.Stats.NoteScore != s.Stats.NotesHit * 50 || s.Stats.ScoreMultiplier > 8))
+                    throw new Exception("Dance scoring does not use YARG's note scale and multipliers");
                 if (keyboardScore.Stats.NotesHit != keyboardScore.Stats.TotalNotes) throw new Exception("Keyboard binding path missed fixture notes");
                 var saved = ScoreContainer.GetHighScore(song.Hash, keyboardProfile.Id, Instrument.FourKey, false);
                 if (!visualRun && (saved == null || saved.Score != keyboardScore.Stats.TotalScore)) throw new Exception("4-key score was not persisted");
                 var result = scores.Select(s => new { instrument = s.Player.Profile.CurrentInstrument.ToString(),
-                    score = s.Stats.TotalScore, hits = s.Stats.NotesHit, total = s.Stats.TotalNotes, fullCombo = s.Stats.IsFullCombo }).ToArray();
-                File.WriteAllText(Path.Combine(output, "result.json"), JsonConvert.SerializeObject(new { passed = true, downwardFlowVerified, highwayOrientationVerified, keyboardInputVerified = !visualRun, scorePersistenceVerified = !visualRun, players = result }, Formatting.Indented));
+                    score = s.Stats.TotalScore, hits = s.Stats.NotesHit, total = s.Stats.TotalNotes, fullCombo = s.Stats.IsFullCombo,
+                    noteScore = s.Stats.NoteScore, sustainScore = s.Stats.SustainScore, multiplierScore = s.Stats.MultiplierScore,
+                    starPowerScore = s.Stats.StarPowerScore, bandBonus = s.Stats.BandBonusScore, activations = s.Stats.StarPowerActivationCount }).ToArray();
+                File.WriteAllText(Path.Combine(output, "result.json"), JsonConvert.SerializeObject(new { passed = true, downwardFlowVerified, highwayOrientationVerified, solidArrowsVerified, hitParticlesVerified, starPowerVerified = true, balancedScoringVerified = true, keyboardInputVerified = !visualRun, scorePersistenceVerified = !visualRun, players = result }, Formatting.Indented));
                 ScreenCapture.CaptureScreenshot(Path.Combine(output, "results.png"));
                 Debug.Log("DANCE_ACCEPTANCE_PASSED: five players, shared audio clock, dance fields, and score screen");
                 await UniTask.Delay(1000);
