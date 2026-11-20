@@ -209,13 +209,13 @@ namespace YARG.Gameplay.Visuals
             _whammyFactor = 0f;
         }
 
-        public void UpdateSustainLine()
+        public void UpdateSustainLine(float strikeLinePosition = TrackPlayer.STRIKE_LINE_POS)
         {
-            UpdateLengthForHit();
+            UpdateLengthForHit(strikeLinePosition);
             UpdateAnimation();
         }
 
-        private void UpdateLengthForHit()
+        private void UpdateLengthForHit(float strikeLinePosition)
         {
             if (_hitState != SustainState.Hitting)
             {
@@ -224,7 +224,7 @@ namespace YARG.Gameplay.Visuals
 
             // Get the new line start position. Said position should be at
             // the strike line and relative to the note itself.
-            float newStart = -transform.parent.localPosition.z + TrackPlayer.STRIKE_LINE_POS;
+            float newStart = -transform.parent.localPosition.z + strikeLinePosition;
 
             if (Mathf.Abs(_currentStartZ - newStart) > 0.001f)
             {

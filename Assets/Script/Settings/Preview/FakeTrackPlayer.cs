@@ -268,7 +268,8 @@ namespace YARG.Settings.Preview
         public const float NOTE_SPEED = 6f;
         private const double SPAWN_FREQ = 0.2;
 
-        private double SpawnTimeOffset => (TrackPlayer.NOTE_SPAWN_OFFSET + -TrackPlayer.STRIKE_LINE_POS) / NOTE_SPEED;
+        private double SpawnTimeOffset => DanceSkin == null ? (TrackPlayer.NOTE_SPAWN_OFFSET + -TrackPlayer.STRIKE_LINE_POS) / NOTE_SPEED
+            : (DanceSkin.Data.ReceptorZ - TrackPlayer.STRIKE_LINE_POS + 1) / (NOTE_SPEED * DanceSkin.Data.ScrollFactor * 2);
 
         [SerializeField]
         private CameraPositioner _cameraPositioner;
@@ -288,6 +289,8 @@ namespace YARG.Settings.Preview
         public GameMode SelectedGameMode { get; set; } = GameMode.FiveFretGuitar;
 
         public double PreviewTime { get; private set; }
+        public DanceHighwaySkin DanceSkin { get; private set; }
+        private readonly MeshRenderer[] _danceReceptors = new MeshRenderer[4];
         private double _nextSpawnTime;
 
         public Info CurrentGameModeInfo { get; private set; }
@@ -314,7 +317,18 @@ namespace YARG.Settings.Preview
             var style = VisualStyleHelpers.GetVisualStyle(SelectedGameMode, CurrentGameModeInfo.UseProKeys ? Instrument.ProKeys : Instrument.FiveFretGuitar);
 
             // Create frets and put then on the right layer
-            if (!CurrentGameModeInfo.UseProKeys)
+            if (SelectedGameMode is GameMode.Dance or GameMode.FourKey)
+            {
+                DanceSkin = new DanceHighwaySkin();
+                _fretArray.gameObject.SetActive(false);
+                for (int lane = 0; lane < 4; lane++)
+                {
+                    _danceReceptors[lane] = DanceSkin.Create(transform, "YACE preview receptor", DanceSkin.Receptor, LayerMask.NameToLayer("Settings Preview"));
+                    _danceReceptors[lane].transform.localPosition = new Vector3(-.75f + lane * .5f, 0, DanceSkin.Data.ReceptorZ);
+                    DanceSkin.Paint(_danceReceptors[lane], new Color32(147, 166, 187, 255));
+                }
+            }
+            else if (!CurrentGameModeInfo.UseProKeys)
             {
                 _fretArray.UseKickFrets = CurrentGameModeInfo.UseKickFrets;
                 _fretArray.Initialize(
@@ -330,13 +344,13 @@ namespace YARG.Settings.Preview
 
             // Create the note prefab (this has to be specially done, because
             // TrackElements need references to the GameManager)
-            var prefab = FakeNote.CreateFakeNoteFromTheme(theme, style);
+            var prefab = DanceSkin == null ? FakeNote.CreateFakeNoteFromTheme(theme, style) : FakeNote.CreateFakeDanceNote(DanceSkin);
             prefab.transform.parent = transform;
             prefab.SetActive(false);
             _notePool.SetPrefabAndReset(prefab);
 
             // Show hit window if enabled
-            _hitWindow.gameObject.SetActive(SettingsManager.Settings.ShowHitWindow.Value || ForceShowHitWindow);
+            _hitWindow.gameObject.SetActive(DanceSkin == null && (SettingsManager.Settings.ShowHitWindow.Value || ForceShowHitWindow));
             _hitWindow.NoteSpeed = NOTE_SPEED;
             _trackMaterial.StarpowerMode = ForceStarPower;
             _trackMaterial.GrooveMode = ForceGroove;
@@ -361,6 +375,9 @@ namespace YARG.Settings.Preview
             // Update camera presets
             _trackMaterial.Initialize(highwayPreset);
             _cameraPositioner.Initialize(cameraPreset);
+            if (DanceSkin != null)
+                for (int lane = 0; lane < 4; lane++)
+                    _danceReceptors[lane].transform.localRotation = DanceSkin.Rotation(lane, cameraPreset.Rotation);
 
             var camera = _cameraPositioner.GetComponent<Camera>();
             var highwayRenderer = camera.GetComponent<HighwayCameraRendering>();
@@ -398,12 +415,13 @@ namespace YARG.Settings.Preview
                 noteObj.EnableFromPool();
             }
 
-            _trackMaterial.SetTrackScroll(PreviewTime, NOTE_SPEED);
+            _trackMaterial.SetTrackScroll(PreviewTime, DanceSkin == null ? NOTE_SPEED : -NOTE_SPEED * DanceSkin.Data.ScrollFactor * 2);
         }
 
         private void OnDestroy()
         {
             SettingsMenu.Instance.SettingChanged -= OnSettingChanged;
+            DanceSkin?.Dispose();
         }
     }
 }

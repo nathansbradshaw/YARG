@@ -1,15 +1,13 @@
 using UnityEngine;
 using YARG.Gameplay.Player;
 using YARG.Core.Dance;
-using YARG.Helpers.Extensions;
 
 namespace YARG.Gameplay.Visuals
 {
-    // Standard YARG theme models and sustain renderer, positioned on the same
-    // world-space highway by the independent Rust simfile clock.
+    // YACE arrows on the normal world-space highway and sustain renderer.
     public sealed class DanceHighwayNote : BaseElement
     {
-        [SerializeField] public NoteGroup Normal, Lift, Mine;
+        [SerializeField] public MeshRenderer Glyph;
         [SerializeField] public SustainLine Sustain;
         public DancePlayer Owner;
         public int Index;
@@ -18,45 +16,45 @@ namespace YARG.Gameplay.Visuals
 
         protected override void InitializeElement()
         {
-            foreach (var group in new[] { Normal, Lift, Mine }) group.Initialize();
-            transform.localScale = new Vector3(1.25f, Owner.Player.HighwayPreset.NoteHeight, 1);
+            transform.localScale = Vector3.one;
+            Glyph.GetComponent<MeshFilter>().sharedMesh = Render.Kind == 3 ? Owner.Skin.Mine :
+                Render.Kind == 4 ? Owner.Skin.Lift : Owner.Skin.Arrow;
             UpdateElement();
         }
 
         protected override bool UpdateElementPosition()
         {
             transform.localPosition = new Vector3(-.75f + Render.Lane * .5f, 0,
-                TrackPlayer.STRIKE_LINE_POS + Render.Head * Owner.UnitsPerBeat);
+                DanceNative.yarg_dance_position(Render.Head, Owner.NoteSpeed));
+            Glyph.transform.localRotation = Owner.Skin.Rotation(Render.Lane, Owner.Player.CameraPreset.Rotation);
             return true;
         }
 
         protected override void UpdateElement()
         {
-            HideElement();
-            var color = Owner.Player.ColorProfile.FiveFretGuitar.GetNoteColor(Render.Lane + 1).ToUnityColor();
-            if (Render.Kind == 3) color = new Color(1, .08f, .08f);
-            else if (Render.Kind == 5 || Render.State == 7) color = new Color(.2f, .2f, .2f);
-            var group = Render.Kind == 3 ? Mine : Render.Kind == 4 ? Lift : Normal;
-            if (Render.State != 3)
-            {
-                group.SetActive(true);
-                group.SetColorWithEmission(color, color);
-            }
+            Glyph.enabled = Render.State != 3;
+            bool fake = Render.Kind == 5 || (Render.State == 7 && Render.Kind != 3);
+            Color color = fake ? new Color32(129, 149, 171, 255) :
+                DanceHighwaySkin.NoteColor(Owner.Engine.Chart.Notes[Index].Beat);
+            Owner.Skin.Paint(Glyph, color, fake ? .38f : 1);
+            if (Render.Kind == 3)
+                Glyph.transform.localRotation *= Quaternion.Euler(0, (float)Owner.Engine.VisualBeat(Owner.Engine.CurrentTime) * 40, 0);
             if (Render.Kind is 1 or 2)
             {
                 Sustain.gameObject.SetActive(true);
-                float length = (Render.Tail - Render.Head) * Owner.UnitsPerBeat;
+                float length = -(Render.Tail - Render.Head) * Owner.UnitsPerBeat;
                 Sustain.transform.localRotation = Quaternion.Euler(0, length < 0 ? 180 : 0, 0);
                 Sustain.Initialize(Mathf.Abs(length));
                 Sustain.SetState(Render.State == 3 ? SustainState.Hitting : SustainState.Waiting,
-                    Render.Kind == 2 ? new Color(.8f, .3f, 1) : color);
-                Sustain.UpdateSustainLine();
+                    Render.Kind == 2 ? new Color32(200, 138, 255, 255) : new Color32(241, 207, 118, 255));
+                Sustain.UpdateSustainLine(Owner.Skin.Data.ReceptorZ);
             }
+            else Sustain.gameObject.SetActive(false);
         }
 
         protected override void HideElement()
         {
-            Normal?.SetActive(false); Lift?.SetActive(false); Mine?.SetActive(false);
+            if (Glyph != null) Glyph.enabled = false;
             if (Sustain != null) Sustain.gameObject.SetActive(false);
         }
     }
