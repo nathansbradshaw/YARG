@@ -148,7 +148,7 @@ namespace YARG.Gameplay.HUD
             // unless this is a mid-song BRE, in which case we don't want to obscure the track
             if (songEnding)
             {
-                _breBoxCanvasGroup.transform.DOMoveY(Screen.height / 2, 0.25f);
+                _breBoxCanvasGroup.transform.DOMoveY(Screen.height / 2, 0.25f).SetLink(gameObject);
             }
 
             // Go away sadly if BRE failed or triumphantly engorge if successful
@@ -156,17 +156,17 @@ namespace YARG.Gameplay.HUD
             {
                 _breFullText.text = Localize.KeyFormat("Gameplay.Solo.PointsResult", 0);
                 yield return new WaitForSeconds(0.5f);
-                _breBoxCanvasGroup.transform.DOScale(0.01f, 1.5f);
+                _breBoxCanvasGroup.transform.DOScale(0.01f, 1.5f).SetLink(gameObject);
             }
             else
             {
                 _breFullText.text = Localize.KeyFormat("Gameplay.Solo.PointsResult", breBonus);
-                _breBoxCanvasGroup.transform.DOScale(1.5f, 0.25f);
+                _breBoxCanvasGroup.transform.DOScale(1.5f, 0.25f).SetLink(gameObject);
                 yield return new WaitForSeconds(2f);
             }
 
             // Fade out the box
-            yield return _breBoxCanvasGroup.DOFade(0f, 0.25f).WaitForCompletion();
+            yield return _breBoxCanvasGroup.DOFade(0f, 0.25f).SetLink(gameObject).WaitForCompletion();
 
             _breBox.gameObject.SetActive(false);
             _currentCoroutine = null;

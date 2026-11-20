@@ -22,7 +22,7 @@ namespace YARG.Venue
 
         public void BuildCommands(SongChart chart, AnimatorCommandQueue queue)
         {
-            var bassId = chart.FiveFretBass.GetDifficulty(Difficulty.Expert);
+            var bassId = chart.FiveFretBass.GetAnimationDifficulty();
             foreach (var bNote in bassId.Notes)
             {
                 double t = bNote.Time - _leadingFrames / 60.0;

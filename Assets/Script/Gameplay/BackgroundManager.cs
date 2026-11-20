@@ -203,58 +203,91 @@ namespace YARG.Gameplay
 
         private async UniTask LoadYarground(BackgroundResult result)
         {
+            var token = this.GetCancellationTokenOnDestroy();
             var bundle = AssetBundle.LoadFromStream(result.Stream);
             AssetBundle shaderBundle = null;
+            GameObject bgInstance = null;
+            bool initialized = false;
 
-            ShowVenue();
-            // KEEP THIS PATH LOWERCASE
-            // Breaks things for other platforms, because Unity
-            var bg = (GameObject) await bundle.LoadAssetAsync<GameObject>(
-                BundleBackgroundManager.BACKGROUND_PREFAB_PATH.ToLowerInvariant());
-            var renderers = bg.GetComponentsInChildren<Renderer>(true);
-
-            // Load Metal shaders, if necessary
-            shaderBundle = await BackgroundHelper.LoadMetalShaders(bundle, bg, BackgroundHelper.ExportType.Background);
-
-            // Hookup song-specific textures
-            var textureManager = GetComponent<TextureManager>();
-            // Load SongBackground here to determine if textures need to be replaced
-            var songBackground = GameManager.Song.LoadBackground(true);
-            foreach (var renderer in renderers)
+            try
             {
-                foreach (var material in renderer.sharedMaterials)
+                if (bundle == null)
                 {
-                    textureManager.ProcessMaterial(material, songBackground?.Type);
+                    YargLogger.LogError("Failed to load venue bundle.");
+                    return;
                 }
+
+                // KEEP THIS PATH LOWERCASE: other platforms require it.
+                var bg = (GameObject) await bundle.LoadAssetAsync<GameObject>(
+                    BundleBackgroundManager.BACKGROUND_PREFAB_PATH.ToLowerInvariant());
+                token.ThrowIfCancellationRequested();
+                if (bg == null || bg.GetComponent<BundleBackgroundManager>() == null)
+                {
+                    YargLogger.LogError("Venue bundle is missing its background prefab or manager.");
+                    return;
+                }
+
+                shaderBundle = await BackgroundHelper.LoadMetalShaders(bundle, bg, BackgroundHelper.ExportType.Background);
+                token.ThrowIfCancellationRequested();
+
+                var textureManager = GetComponent<TextureManager>();
+                using var songBackground = GameManager.Song.LoadBackground(true);
+                foreach (var renderer in bg.GetComponentsInChildren<Renderer>(true))
+                {
+                    foreach (var material in renderer.sharedMaterials)
+                    {
+                        textureManager.ProcessMaterial(material, songBackground?.Type);
+                    }
+                }
+
+                bgInstance = Instantiate(bg);
+                _bundleBackgroundManager = bgInstance.GetComponent<BundleBackgroundManager>();
+                _bundleBackgroundManager.Bundle = bundle;
+                if (shaderBundle != null)
+                {
+                    _bundleBackgroundManager.ShaderBundles.Add(shaderBundle);
+                }
+
+                // The instance owns these bundles from here, including during character loading.
+                bundle = null;
+                shaderBundle = null;
+                _bundleBackgroundManager.SetupVenueCamera(bgInstance);
+                _bundleBackgroundManager.LimitVenueLights(bgInstance);
+                SetYargroundOrigin(bgInstance);
+
+                Destroy(_videoPlayer.targetCamera.gameObject);
+                if (textureManager.VideoTexFound())
+                {
+                    SetUpVideoTexture(songBackground);
+                }
+
+                await LoadCustomCharacter(bgInstance);
+                token.ThrowIfCancellationRequested();
+                var characterManager = bgInstance.GetComponentInChildren<CharacterManager>();
+                if (characterManager != null)
+                {
+                    characterManager.Initialize();
+                }
+
+                initialized = true;
+                ShowVenue();
             }
-
-            var bgInstance = Instantiate(bg);
-            var bundleBackgroundManager = bgInstance.GetComponent<BundleBackgroundManager>();
-            bundleBackgroundManager.Bundle = bundle;
-            bundleBackgroundManager.ShaderBundles.Add(shaderBundle);
-            bundleBackgroundManager.SetupVenueCamera(bgInstance);
-            bundleBackgroundManager.LimitVenueLights(bgInstance);
-
-            _bundleBackgroundManager = bundleBackgroundManager;
-
-            // Position venue as close to origin as is conveniently possible without wrecking scene view
-            SetYargroundOrigin(bgInstance);
-
-            // Destroy the default camera (venue has its own)
-            Destroy(_videoPlayer.targetCamera.gameObject);
-
-            if (textureManager.VideoTexFound())
+            finally
             {
-                SetUpVideoTexture(songBackground);
-            }
+                if (!initialized && bgInstance != null)
+                {
+                    Destroy(bgInstance);
+                }
 
-            await LoadCustomCharacter(bgInstance);
-
-            // Initialize CharacterManager, if it exists
-            var characterManager = bgInstance.GetComponentInChildren<CharacterManager>();
-            if (characterManager != null)
-            {
-                characterManager.Initialize();
+                // Failed or interrupted loads never reach the instance's normal OnDestroy cleanup.
+                if (shaderBundle != null)
+                {
+                    shaderBundle.Unload(true);
+                }
+                if (bundle != null)
+                {
+                    bundle.Unload(true);
+                }
             }
         }
 
@@ -297,12 +330,16 @@ namespace YARG.Gameplay
         {
             // Wait for the venue to be rendered, otherwise we will see a gray screen
             var token = this.GetCancellationTokenOnDestroy();
-            await UniTask
+            bool cancelled = await UniTask
                 .WaitUntil(
                     () => VenueCameraRenderer.IsRendered,
                     cancellationToken: token
                 )
                 .SuppressCancellationThrow();
+            if (cancelled)
+            {
+                return;
+            }
             _venueFadeOverlay.CrossFadeAlpha(0f, FADE_DURATION, true);
         }
 
@@ -502,6 +539,7 @@ namespace YARG.Gameplay
 
         private async UniTask LoadCustomCharacter(GameObject venueRoot)
         {
+            var token = this.GetCancellationTokenOnDestroy();
             string characterPath = SettingsManager.Settings.CustomVocalsCharacter.Value;
 
             if (string.IsNullOrEmpty(characterPath))
@@ -527,6 +565,14 @@ namespace YARG.Gameplay
 
             // Load Metal shaders
             var shaderBundle = await BackgroundHelper.LoadMetalShaders(bundle, character, BackgroundHelper.ExportType.Character);
+            if (token.IsCancellationRequested)
+            {
+                if (shaderBundle != null)
+                {
+                    shaderBundle.Unload(true);
+                }
+                token.ThrowIfCancellationRequested();
+            }
             if (shaderBundle != null)
             {
                 _bundleBackgroundManager.ShaderBundles.Add(shaderBundle);

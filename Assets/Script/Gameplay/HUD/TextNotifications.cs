@@ -68,7 +68,9 @@ namespace YARG.Gameplay.HUD
             TextNotificationType.StrongFinish
         };
 
-        private Sequence _animationSequence => DOTween.Sequence()
+        private Sequence _animationSequence;
+
+        private Sequence CreateAnimationSequence() => DOTween.Sequence()
                 .Append(DOTween.Sequence()
                     .Append(_containerRect
                         .DOScale(_animPeakScale, _animBaseToPeakInterval)
@@ -84,7 +86,8 @@ namespace YARG.Gameplay.HUD
                         .SetEase(Ease.InOutSine))
                     .Append(_containerRect
                         .DOScale(0f, _animBaseToPeakInterval)
-                        .SetEase(Ease.InCirc)));
+                        .SetEase(Ease.InCirc)))
+                .SetLink(gameObject);
 
 
         private void OnEnable()
@@ -103,7 +106,9 @@ namespace YARG.Gameplay.HUD
                 StopCoroutine(_coroutine);
             }
 
-            _animationSequence.Kill();
+            _animationSequence?.Kill();
+            _animationSequence = null;
+            _coroutine = null;
             _notificationBackground.gameObject.SetActive(false);
             _containerRect.gameObject.SetActive(false);
         }
@@ -235,8 +240,10 @@ namespace YARG.Gameplay.HUD
         private IEnumerator ShowNextNotification(string notificationText)
         {
             _text.text = notificationText;
+            _animationSequence = CreateAnimationSequence();
             yield return _animationSequence.WaitForCompletion();
 
+            _animationSequence = null;
             _text.text = string.Empty;
             _coroutine = null;
         }
