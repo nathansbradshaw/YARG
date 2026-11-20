@@ -75,6 +75,7 @@ namespace YARG.Gameplay
         private AssetBundle _characterBundle;
 
         private BundleBackgroundManager _bundleBackgroundManager;
+        private static VenueCharacter.CharacterType? _lastVocalistCast;
 
 #if UNITY_EDITOR
         private          bool             _usingEditorVenue;
@@ -261,6 +262,11 @@ namespace YARG.Gameplay
                     SetUpVideoTexture(songBackground);
                 }
 
+                if (SettingsManager.Settings.ShuffleVenueVocalist.Value &&
+                    string.IsNullOrEmpty(SettingsManager.Settings.CustomVocalsCharacter.Value))
+                {
+                    ShuffleVenueVocalist(bgInstance);
+                }
                 await LoadCustomCharacter(bgInstance);
                 token.ThrowIfCancellationRequested();
                 var characterManager = bgInstance.GetComponentInChildren<CharacterManager>();
@@ -289,6 +295,58 @@ namespace YARG.Gameplay
                     bundle.Unload(true);
                 }
             }
+        }
+
+        private void ShuffleVenueVocalist(GameObject venueRoot)
+        {
+            var performers = venueRoot.GetComponentsInChildren<VenueCharacter>();
+            VenueCharacter singer = null;
+            var candidates = new List<VenueCharacter>();
+            foreach (var performer in performers)
+            {
+                if (performer.Type == VenueCharacter.CharacterType.Vocals) singer = performer;
+                var rig = performer.GetComponent<Animator>();
+                // Keep authored VRM/custom behaviors intact; this uses plain humanoid venue rigs.
+                if ((performer.GetType() == typeof(VenueCharacter) || performer.Type == VenueCharacter.CharacterType.Vocals) &&
+                    rig != null && rig.isHuman)
+                    candidates.Add(performer);
+            }
+            if (singer == null) return;
+            var singerAnimator = singer.GetComponent<Animator>();
+            var controller = singerAnimator?.runtimeAnimatorController;
+            if (controller == null || controller.animationClips.Length == 0) return;
+            foreach (var clip in controller.animationClips)
+                if (!clip.humanMotion) return;
+
+            if (candidates.Count > 1) candidates.RemoveAll(c => c.Type == _lastVocalistCast);
+            if (candidates.Count == 0) return;
+            var source = candidates[UnityEngine.Random.Range(0, candidates.Count)];
+            _lastVocalistCast = source.Type;
+            YargLogger.LogFormatInfo("Venue vocalist cast: {0} ({1})", source.name, source.Type);
+            if (source == singer) return;
+
+            var replacement = Instantiate(source.gameObject, singer.transform.parent);
+            replacement.name = "Rotating vocalist - " + source.name;
+            replacement.transform.SetPositionAndRotation(singer.transform.position, singer.transform.rotation);
+            var scale = singer.transform.parent != null ? singer.transform.parent.lossyScale : Vector3.one;
+            var sourceScale = source.transform.lossyScale;
+            replacement.transform.localScale = new Vector3(sourceScale.x / scale.x, sourceScale.y / scale.y, sourceScale.z / scale.z);
+            var performerCopy = replacement.GetComponent<VenueCharacter>();
+            JsonUtility.FromJsonOverwrite(JsonUtility.ToJson(singer), performerCopy);
+            performerCopy.Type = VenueCharacter.CharacterType.Vocals;
+            var animator = replacement.GetComponent<Animator>();
+            animator.runtimeAnimatorController = controller;
+            animator.applyRootMotion = singerAnimator.applyRootMotion;
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            // Body meshes and bones remain intact; instrument props and role-specific constraints stay off.
+            foreach (var renderer in replacement.GetComponentsInChildren<MeshRenderer>(true)) renderer.enabled = false;
+            foreach (var behaviour in replacement.GetComponentsInChildren<Behaviour>(true))
+                if (behaviour != animator && behaviour != performerCopy && behaviour is not Humanoid)
+                    behaviour.enabled = false;
+            animator.Rebind();
+            ReplaceReferences(venueRoot, singer.gameObject, replacement);
+            // Keep the inactive authored performer until its venue unloads, preserving asset ownership.
+            singer.gameObject.SetActive(false);
         }
 
         private void SetUpVideoTexture(BackgroundResult songBackGround)
@@ -721,6 +779,15 @@ namespace YARG.Gameplay
             {
                 hips = humanoid.Hips;
                 head = humanoid.Head;
+            }
+            else
+            {
+                var animator = newObject.GetComponent<Animator>();
+                if (animator != null && animator.isHuman)
+                {
+                    hips = animator.GetBoneTransform(HumanBodyBones.Hips);
+                    head = animator.GetBoneTransform(HumanBodyBones.Head);
+                }
             }
 
             // Find references to oldObject.transform anywhere in venueRoot..for now we'll just deal with Cinemachine and Lights having lookat/follow properties
