@@ -35,8 +35,8 @@ namespace YARG.Gameplay.Visuals
             Glyph.enabled = Render.State != 3;
             bool fake = Render.Kind == 5 || (Render.State == 7 && Render.Kind != 3);
             Color color = fake ? new Color32(129, 149, 171, 255) :
-                DanceHighwaySkin.NoteColor(Owner.Engine.Chart.Notes[Index].Beat);
-            Owner.Skin.Paint(Glyph, color, fake ? .38f : 1);
+                Owner.Engine.IsStarPowerNote(Index) ? new Color32(80, 230, 255, 255) : DanceHighwaySkin.NoteColor(Owner.Engine.Chart.Notes[Index].Beat);
+            Owner.Skin.Paint(Glyph, color, fake ? .38f : 1, Owner.Engine.Stats.IsStarPowerActive ? .6f : 0);
             if (Render.Kind == 3)
                 Glyph.transform.localRotation *= Quaternion.Euler(0, (float)Owner.Engine.VisualBeat(Owner.Engine.CurrentTime) * 40, 0);
             if (Render.Kind is 1 or 2)

@@ -12,7 +12,9 @@ using YARG.Core.Input;
 using YARG.Core.Replays;
 using YARG.Gameplay.HUD;
 using YARG.Gameplay.Visuals;
+using YARG.Helpers.Authoring;
 using YARG.Player;
+using YARG.Themes;
 
 namespace YARG.Gameplay.Player
 {
@@ -23,13 +25,18 @@ namespace YARG.Gameplay.Player
         public DanceEngine Engine { get; private set; }
         public override BaseEngine BaseEngine => Engine;
         public override bool ShouldUpdateInputsOnResume => true;
-        protected override float[] StarMultiplierThresholds { get; set; } = new[] { .10f, .25f, .45f, .65f, .85f, 1f };
+        protected override float[] StarMultiplierThresholds { get; set; } = new[] { .06f, .12f, .20f, .47f, .78f, 1.15f };
         public float UnitsPerBeat { get; private set; }
         public DanceHighwaySkin Skin { get; private set; }
         private readonly MeshRenderer[] _receptors = new MeshRenderer[4];
         private readonly double[] _hitTimes = { -100, -100, -100, -100 };
         private readonly Color[] _hitColors = new Color[4];
         private readonly bool[] _pressed = new bool[4], _held = new bool[4];
+        private readonly EffectGroup[] _hitEffects = new EffectGroup[4], _sustainEffects = new EffectGroup[4];
+        private ParticleSystem[] _hitParticles;
+        public int HitBurstCount { get; private set; }
+        public int PeakHitParticles { get; private set; }
+        public bool HasSolidArrows => Skin.Arrow.bounds.size.y > .07f;
         private GameObject _noteTemplate;
         private readonly DanceRenderNote[] _visible = new DanceRenderNote[500];
         private readonly HashSet<int> _visibleIndices = new();
@@ -71,10 +78,15 @@ namespace YARG.Gameplay.Player
             Engine.SetSpeed(player.IsReplay ? Engine.Parameters.SongSpeed : GameManager.SongSpeed);
             Engine.OnComboIncrement += OnComboIncrement;
             Engine.OnComboReset += OnComboReset;
+            Engine.OnStarPowerStatus += OnStarPowerStatus;
+            Engine.OnStarPowerReady += OnStarPowerReady;
+            Engine.StarPowerPhraseHit += OnDancePowerPhraseHit;
+            Engine.StarPowerPhraseMissed += OnStarPowerPhraseMissed;
+            Engine.AllowStarPower(!GameManager.IsPractice);
             EngineContainer = GameManager.EngineManager.Register(Engine, player.Profile.CurrentInstrument, chart, player.RockMeterPreset);
             TotalNotes = Engine.Stats.TotalNotes;
             HitWindow = Engine.Parameters.HitWindow;
-            ComboMeter.Initialize(player.EnginePreset, 1, GameManager.Players.Count > 1);
+            ComboMeter.Initialize(player.EnginePreset, 4, GameManager.Players.Count > 1);
             TrackMaterial.Initialize(player.HighwayPreset);
             CameraPositioner.Initialize(player.CameraPreset);
             GetComponentInChildren<FretArray>(true).gameObject.SetActive(false);
@@ -85,9 +97,35 @@ namespace YARG.Gameplay.Player
                 _receptors[lane].transform.localPosition = new Vector3(-.75f + .5f * lane, 0, Skin.Data.ReceptorZ);
                 _receptors[lane].transform.localRotation = Skin.Rotation(lane);
             }
+            CreateHitEffects();
             _noteTemplate = CreateNoteTemplate();
             NotePool.SetPrefabAndReset(_noteTemplate);
             UpdateUnitsPerBeat();
+        }
+
+        private void CreateHitEffects()
+        {
+            // Use the player's existing YARG theme, including its sparks, flash
+            // and light effects. Only the arrow mesh replaces the fret model.
+            var source = ThemeManager.Instance.CreateFretPrefabFromTheme(Player.ThemePreset, VisualStyle.FiveFretGuitar)
+                .GetComponent<Fret>().ThemeBind;
+            for (int lane = 0; lane < 4; lane++)
+            {
+                _hitEffects[lane] = CreateEffect(source.HitEffect, lane);
+                _sustainEffects[lane] = CreateEffect(source.SustainEffect, lane);
+            }
+            _hitParticles = _hitEffects.SelectMany(e => e.GetComponentsInChildren<ParticleSystem>(true)).ToArray();
+        }
+
+        private EffectGroup CreateEffect(EffectGroup source, int lane)
+        {
+            var effect = Instantiate(source, transform, false);
+            effect.transform.localPosition = new Vector3(-.75f + .5f * lane, .09f, Skin.Data.ReceptorZ);
+            effect.transform.localScale *= 1.15f;
+            foreach (var child in effect.GetComponentsInChildren<Transform>(true)) child.gameObject.layer = NotePool.Prefab.layer;
+            effect.gameObject.SetActive(true);
+            effect.Stop();
+            return effect;
         }
 
         private GameObject CreateNoteTemplate()
@@ -115,14 +153,20 @@ namespace YARG.Gameplay.Player
             UpdateUnitsPerBeat();
             TrackView.UpdateHUDPosition(HighwayIndex, HighwayCount);
             TrackMaterial.SetTrackScroll(Engine.VisualBeat(time), UnitsPerBeat);
-            TrackMaterial.GrooveMode = false;
-            TrackMaterial.StarpowerMode = false;
             var stats = Engine.Stats;
+            bool power = stats.IsStarPowerActive;
+            int maxMultiplier = power ? 8 : 4;
+            bool groove = stats.ScoreMultiplier == maxMultiplier;
+            TrackMaterial.GrooveMode = groove;
+            TrackMaterial.StarpowerMode = power;
             IsFc = Engine.Snapshot.Misses + Engine.Snapshot.Drops + Engine.Snapshot.Mines == 0;
-            ComboMeter.SetCombo(1, 1, 1, stats.Combo, false);
+            int displayed = GameManager.TotalPlayers > 1 && power ? stats.ScoreMultiplier / 2 : stats.ScoreMultiplier;
+            ComboMeter.SetCombo(stats.ScoreMultiplier, displayed, maxMultiplier, stats.Combo, false);
             ComboMeter.SetFullCombo(IsFc);
-            StarpowerBar.SetStarpower(0, false, false);
-            SunburstEffects.SetSunburstEffects(false, false, 1);
+            StarpowerBar.SetStarpower(Engine.GetStarPowerBarAmount(), power, false);
+            StarpowerBar.UpdateFlash(GameManager.BeatEventHandler.Visual.StrongBeat.CurrentPercentage);
+            SunburstEffects.SetSunburstEffects(groove, power, stats.ScoreMultiplier);
+            foreach (var haptics in SantrollerHaptics) haptics.SetStarPowerFill((float)Engine.GetStarPowerBarAmount());
             TrackView.UpdateNoteStreak(stats.Combo);
             UpdateHighwayNotes(time);
             UpdateReceptors(time);
@@ -143,8 +187,17 @@ namespace YARG.Gameplay.Player
                 var state = Engine.State(visual.Index);
                 if (visual.Render.State == 0 && state is 1 or 3 or 4)
                 {
-                    _hitTimes[visual.Render.Lane] = time;
-                    _hitColors[visual.Render.Lane] = DanceHighwaySkin.NoteColor(Engine.Chart.Notes[visual.Index].Beat);
+                    int lane = visual.Render.Lane;
+                    _hitTimes[lane] = time;
+                    _hitColors[lane] = Engine.Stats.IsStarPowerActive ? new Color32(80, 230, 255, 255) :
+                        DanceHighwaySkin.NoteColor(Engine.Chart.Notes[visual.Index].Beat);
+                    if (!GameManager.IsSeekingReplay)
+                    {
+                        _hitEffects[lane].SetColor(_hitColors[lane]);
+                        _sustainEffects[lane].SetColor(_hitColors[lane]);
+                        _hitEffects[lane].Play();
+                        HitBurstCount++;
+                    }
                 }
             }
             int count = Engine.Render(time, -2 / UnitsPerBeat,
@@ -182,9 +235,15 @@ namespace YARG.Gameplay.Player
                 bool active = _held[lane] || _pressed[lane];
                 Color color = flash > 0 ? _hitColors[lane] : active ? new Color32(241, 215, 140, 255) : new Color32(147, 166, 187, 255);
                 Skin.Paint(_receptors[lane], color, 1, active ? .65f : flash * flash);
+                if (_held[lane] && !GameManager.IsSeekingReplay)
+                {
+                    _sustainEffects[lane].Play();
+                }
+                else _sustainEffects[lane].Stop();
                 _receptors[lane].transform.localRotation = Skin.Rotation(lane);
                 _receptors[lane].transform.localScale = Vector3.one * (1 + pulse + flash * .12f);
             }
+            PeakHitParticles = Math.Max(PeakHitParticles, _hitParticles.Sum(p => p.particleCount));
         }
 
         public bool HasVisibleField => TrackCamera != null && CameraPositioner != null && TrackMaterial != null
@@ -195,7 +254,7 @@ namespace YARG.Gameplay.Player
             if (time + InputCalibration < Engine.CurrentTime) return;
             base.UpdateInputs(time);
         }
-        protected override bool InterceptInput(ref GameInput input) => input.Action is < 0 or > 3;
+        protected override bool InterceptInput(ref GameInput input) => input.Action is < 0 or > 4 || (input.Action == 4 && GameManager.IsPractice);
         protected override void OnInputQueued(GameInput input)
         {
             if (input.Action is >= 0 and < 4) _pressed[input.Action] = input.Button;
@@ -206,6 +265,12 @@ namespace YARG.Gameplay.Player
             Array.Clear(_pressed, 0, _pressed.Length);
             Array.Clear(_held, 0, _held.Length);
             for (int i = 0; i < 4; i++) _hitTimes[i] = -100;
+            foreach (var effect in _hitEffects.Concat(_sustainEffects).Where(e => e != null))
+            {
+                effect.Stop();
+                foreach (var particle in effect.GetComponentsInChildren<ParticleSystem>(true))
+                    particle.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            }
             BeatlineIndex = 0;
         }
         public override void Rewind(double visualTime) { }
@@ -221,7 +286,16 @@ namespace YARG.Gameplay.Player
             TotalNotes = Engine.Stats.TotalNotes; ResetVisuals();
         }
         public override void SetStemMuteState(bool muted) { }
-        public override void SetStarPowerFX(bool active) { }
+        public override void SetStarPowerFX(bool active) => base.SetStarPowerFX(active);
+        private void OnDancePowerPhraseHit()
+        {
+            if (!GameManager.IsSeekingReplay)
+            {
+                StarPowerEffect.gameObject.SetActive(true);
+                StarPowerEffect.PlayAnimation();
+            }
+            OnStarPowerPhraseHit();
+        }
         public override (ReplayFrame Frame, ReplayStats Stats) ConstructReplayData()
         {
             var stats = new DanceStats(Engine.Stats);

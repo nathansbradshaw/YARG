@@ -56,6 +56,7 @@ namespace YARG.Input
                 AddBinding(YARG.Core.Dance.DanceAction.Down, keyboard.downArrowKey);
                 AddBinding(YARG.Core.Dance.DanceAction.Up, keyboard.upArrowKey);
                 AddBinding(YARG.Core.Dance.DanceAction.Right, keyboard.rightArrowKey);
+                AddBinding(YARG.Core.Dance.DanceAction.StarPower, keyboard.rightShiftKey);
             }
             else
             {
@@ -63,6 +64,7 @@ namespace YARG.Input
                 AddBinding(YARG.Core.Dance.DanceAction.Down, keyboard.fKey);
                 AddBinding(YARG.Core.Dance.DanceAction.Up, keyboard.jKey);
                 AddBinding(YARG.Core.Dance.DanceAction.Right, keyboard.kKey);
+                AddBinding(YARG.Core.Dance.DanceAction.StarPower, keyboard.spaceKey);
             }
             return true;
         }

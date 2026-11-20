@@ -24,6 +24,7 @@ namespace YARG.Input
 
         private readonly List<SerializedInputDevice> _unresolvedDevices = new();
         private readonly List<InputDevice> _devices = new();
+        private readonly HashSet<GameMode> _legacyDancePower = new();
 
         private readonly Dictionary<GameMode, BindingCollection> _bindsByGameMode = new();
         public readonly BindingCollection MenuBindings;
@@ -111,6 +112,8 @@ namespace YARG.Input
                     }
 
                     modeBindings.Deserialize(serializedBinds);
+                    if (mode is GameMode.Dance or GameMode.FourKey && serializedBinds?.Bindings?.ContainsKey("Guitar.StarPower") != true)
+                        _legacyDancePower.Add(mode);
                 }
             }
 
@@ -366,6 +369,18 @@ namespace YARG.Input
             }
 
             MenuBindings.OnDeviceAdded(device);
+            foreach (var mode in _legacyDancePower)
+            {
+                InputControl control = device switch
+                {
+                    Keyboard keyboard => mode == GameMode.Dance ? keyboard.rightShiftKey : keyboard.spaceKey,
+                    Gamepad gamepad => gamepad.selectButton,
+                    _ => null
+                };
+                var power = _bindsByGameMode[mode].TryGetBindingByAction(4);
+                if (control != null && power != null && !power.ContainsControl(control))
+                    power.AddControl(ActuationSettings.Default, control);
+            }
 
             DeviceAdded?.Invoke(device);
         }
