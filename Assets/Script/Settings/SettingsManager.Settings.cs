@@ -600,6 +600,7 @@ namespace YARG.Settings
 
             public CustomCharacterSetting CustomVocalsCharacter { get; } = new(string.Empty, VenueCharacter.CharacterType.Vocals, CustomCharacterCallback);
             public ToggleSetting ShuffleVenueVocalist { get; } = new(false);
+            public ToggleSetting ShuffleCustomBand { get; } = new(false);
             #endregion
 
             #region Helpers

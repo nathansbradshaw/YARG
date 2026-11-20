@@ -268,6 +268,7 @@ namespace YARG.Gameplay
                     ShuffleVenueVocalist(bgInstance);
                 }
                 await LoadCustomCharacter(bgInstance);
+                await BandCharacterSkin.Load(bgInstance, _bundleBackgroundManager);
                 token.ThrowIfCancellationRequested();
                 var characterManager = bgInstance.GetComponentInChildren<CharacterManager>();
                 if (characterManager != null)

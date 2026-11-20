@@ -132,3 +132,7 @@ mono_crash.mem.*.blob
 /Assets/Plugins/Dance/*.so
 /Assets/Plugins/Dance/*.dll
 /Builds/
+
+# Locally converted character assets (game geometry is not redistributed)
+/Assets/LocalCharacterBuild/
+/Assets/LocalCharacterBuild.meta
