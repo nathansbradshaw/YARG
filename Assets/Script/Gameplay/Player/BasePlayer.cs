@@ -234,6 +234,7 @@ namespace YARG.Gameplay.Player
 
         protected override void GameplayDestroy()
         {
+            if (Player == null) return;
             if (!Player.IsReplay)
             {
                 UnsubscribeFromInputEvents();

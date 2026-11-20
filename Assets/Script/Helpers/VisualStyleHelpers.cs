@@ -14,6 +14,7 @@ namespace YARG.Assets.Script.Helpers
         {
             return gameMode switch
             {
+                GameMode.Dance or GameMode.FourKey => VisualStyle.FiveFretGuitar,
                 GameMode.FiveFretGuitar => VisualStyle.FiveFretGuitar,
                 GameMode.SixFretGuitar => VisualStyle.SixFretGuitar,
                 GameMode.FourLaneDrums => VisualStyle.FourLaneDrums,

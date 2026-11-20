@@ -55,6 +55,14 @@ namespace YARG.Input
         #region Gamepad gameplay
         private bool SetDefaultGameplayBindings_Gamepad(Gamepad gamepad)
         {
+            if (Mode is GameMode.Dance or GameMode.FourKey)
+            {
+                AddBinding(YARG.Core.Dance.DanceAction.Left, gamepad.dpad.left);
+                AddBinding(YARG.Core.Dance.DanceAction.Down, gamepad.dpad.down);
+                AddBinding(YARG.Core.Dance.DanceAction.Up, gamepad.dpad.up);
+                AddBinding(YARG.Core.Dance.DanceAction.Right, gamepad.dpad.right);
+                return true;
+            }
             return Mode switch
             {
                 GameMode.FiveFretGuitar => SetDefaultFiveFretBindings_Gamepad(gamepad),

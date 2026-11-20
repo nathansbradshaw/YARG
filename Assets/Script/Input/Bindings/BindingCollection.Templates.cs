@@ -198,6 +198,13 @@ namespace YARG.Input
         {
             return mode switch
             {
+                GameMode.Dance or GameMode.FourKey => new BindingCollection(mode)
+                {
+                    new ButtonBinding("Dance.Left", 0),
+                    new ButtonBinding("Dance.Down", 1),
+                    new ButtonBinding("Dance.Up", 2),
+                    new ButtonBinding("Dance.Right", 3),
+                },
                 GameMode.FiveFretGuitar => CreateFiveFretGuitarBindings(),
                 GameMode.SixFretGuitar => CreateSixFretGuitarBindings(),
 

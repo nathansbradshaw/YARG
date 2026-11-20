@@ -874,7 +874,8 @@ PlayerSettings:
   scriptingDefineSymbols:
     Standalone: ZSTRING_TEXTMESHPRO_SUPPORT
   additionalCompilerArguments: {}
-  platformArchitecture: {}
+  platformArchitecture:
+    Standalone: 2
   scriptingBackend:
     Android: 0
   il2cppCompilerConfiguration: {}

@@ -292,9 +292,22 @@ namespace YARG.Settings.Preview
 
         public Info CurrentGameModeInfo { get; private set; }
 
+        private static Info GetGameModeInfo(GameMode mode)
+        {
+            if (mode is not (GameMode.Dance or GameMode.FourKey)) return _gameModeInfos[mode];
+            var info = _gameModeInfos[GameMode.FiveFretGuitar];
+            info.LaneCount = 4;
+            info.HighwayOrdering = new Dictionary<int, int> { { 1, 0 }, { 2, 1 }, { 3, 2 }, { 4, 3 } };
+            info.CreateFakeNote = time => new FakeNoteData
+            {
+                Time = time, Fret = Random.Range(1, 5), CenterNote = false, NoteType = ThemeNoteType.Normal
+            };
+            return info;
+        }
+
         private void Start()
         {
-            CurrentGameModeInfo = _gameModeInfos[SelectedGameMode];
+            CurrentGameModeInfo = GetGameModeInfo(SelectedGameMode);
             var theme = ThemePreset.Default;
 
             // If we aren't using Pro Keys, then the passed instrument doesn't really matter; arbitrarily pass Five-Fret Guitar

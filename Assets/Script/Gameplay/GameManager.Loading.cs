@@ -404,6 +404,7 @@ namespace YARG.Gameplay
             try
             {
                 _players = new List<BasePlayer>();
+                TrackPlayer.HighwayCount = 1;
 
                 bool vocalTrackInitialized = false;
 
@@ -442,6 +443,16 @@ namespace YARG.Gameplay
                     if (player.Profile.GameMode != GameMode.Vocals)
                     {
                         highwayIndex++;
+                        if (player.Profile.GameMode is GameMode.Dance or GameMode.FourKey)
+                        {
+                            var dance = DancePlayer.Create(_fiveFretGuitarPrefab,
+                                new Vector3(highwayIndex * TRACK_SPACING_X, 100f, 0f));
+                            var danceView = _trackViewManager.CreateTrackView();
+                            dance.Initialize(highwayIndex, player, Chart, danceView, _mixer, lastHighScore);
+                            _players.Add(dance);
+                            _trackViewManager.AddTrackPlayer(dance);
+                            continue;
+                        }
                         var prefab = player.Profile.GameMode switch
                         {
                             GameMode.FiveFretGuitar => _fiveFretGuitarPrefab,

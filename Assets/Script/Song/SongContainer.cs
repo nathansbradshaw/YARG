@@ -60,7 +60,9 @@ namespace YARG.Song
         ProKeys,
         Vocals,
         Harmony,
-        Band
+        Band,
+        Dance,
+        FourKey
     }
 
     public readonly struct SongCategory
@@ -156,6 +158,7 @@ namespace YARG.Song
                     PathHelper.BadSongsPath,
                     SettingsManager.Settings.UseFullDirectoryForPlaylists.Value,
                     directories);
+                YARG.Core.Dance.DanceLibrary.Refresh(_songCache, directories);
             });
 
             while (task.Status == UniTaskStatus.Pending)
@@ -230,6 +233,8 @@ namespace YARG.Song
                 SortAttribute.Vocals         => _sortInstruments[Instrument.Vocals],
                 SortAttribute.Harmony        => _sortInstruments[Instrument.Harmony],
                 SortAttribute.Band           => _sortInstruments[Instrument.Band],
+                SortAttribute.Dance          => _sortInstruments[Instrument.Dance],
+                SortAttribute.FourKey        => _sortInstruments[Instrument.FourKey],
                 _ => null
             };
 

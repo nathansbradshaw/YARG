@@ -35,7 +35,9 @@ namespace YARG.Menu.ProfileList
             GameMode.FourLaneDrums,
             GameMode.FiveLaneDrums,
             GameMode.Vocals,
-            GameMode.ProKeys
+            GameMode.ProKeys,
+            GameMode.Dance,
+            GameMode.FourKey
         };
 
         private static readonly StarPowerActivationType[] _starPowerActivationTypes =

@@ -18,6 +18,8 @@
             "Medium": "Medium"
         },
         "GameMode": {
+            "Dance": "Dance (4-Panel Pad)",
+            "FourKey": "4-Key Keyboard",
             "FiveFretGuitar": "Guitar (5-Fret)",
             "SixFretGuitar": "Guitar (6-Fret)",
             "EliteDrums": "MIDI Drumkit",
@@ -29,6 +31,8 @@
             "Vocals": "Vocals"
         },
         "Instrument": {
+            "Dance": "Dance",
+            "FourKey": "4-Key",
             "FiveFretGuitar": "Guitar",
             "FiveFretBass": "Bass",
             "FiveFretRhythm": "Rhythm",
@@ -68,6 +72,8 @@
             "OpensToGreens": "Opens To Greens"
         },
         "SortAttribute": {
+            "Dance": "Dance",
+            "FourKey": "4-Key",
             "Album": "Album",
             "Artist": "Artist",
             "Artist_Album": "Artist - Album",
@@ -798,6 +804,12 @@
         }
     },
     "Bindings": {
+        "Dance": {
+            "Left": "Left / Column 1",
+            "Down": "Down / Column 2",
+            "Up": "Up / Column 3",
+            "Right": "Right / Column 4"
+        },
         "Menu": {
             "Green": "Green (Confirm)",
             "Red": "Red (Back)",
