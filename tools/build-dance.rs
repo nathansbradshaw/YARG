@@ -1,4 +1,4 @@
-//! Build with `rustc Tools/build-dance.rs -o /tmp/yarg-build-dance`.
+//! Build with `rustc tools/build-dance.rs -o /tmp/yarg-build-dance`.
 //! Run from the project root. Uses a single shared native Cargo target directory.
 use std::{
     env, fs,

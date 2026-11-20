@@ -127,7 +127,7 @@ reload_lock~.meta
 # Unity crash dumps
 mono_crash.mem.*.blob
 
-# Rebuilt from Rust by Tools/build-dance.rs; keep plugin import settings.
+# Rebuilt from Rust by tools/build-dance.rs; keep plugin import settings.
 /Assets/Plugins/Dance/*.dylib
 /Assets/Plugins/Dance/*.so
 /Assets/Plugins/Dance/*.dll

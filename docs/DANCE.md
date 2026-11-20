@@ -74,7 +74,7 @@ native library before running editor gameplay checks.
 From the repository root:
 
 ```sh
-rustc Tools/build-dance.rs -o /tmp/yarg-build-dance
+rustc tools/build-dance.rs -o /tmp/yarg-build-dance
 /tmp/yarg-build-dance macos   # linux or windows on those native hosts
 cargo test --locked --manifest-path YARG.Core/Native/dance/Cargo.toml
 cargo build --release --locked --manifest-path YARG.Core/Native/dance/Cargo.toml

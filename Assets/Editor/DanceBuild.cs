@@ -39,13 +39,13 @@ namespace Editor
             var latest = Directory.EnumerateFiles(Path.Combine(source, "src"), "*.rs", SearchOption.AllDirectories)
                 .Concat(Directory.EnumerateFiles(Path.Combine(source, "vendor"), "*.rs", SearchOption.AllDirectories))
                 .Concat(Directory.EnumerateFiles(Path.Combine(source, "vendor"), "Cargo.toml", SearchOption.AllDirectories))
-                .Concat(new[] { Path.Combine(source, "Cargo.lock"), Path.Combine(source, "Cargo.toml"), Path.Combine(project, "Tools", "build-dance.rs") })
+                .Concat(new[] { Path.Combine(source, "Cargo.lock"), Path.Combine(source, "Cargo.toml"), Path.Combine(project, "tools", "build-dance.rs") })
                 .Max(File.GetLastWriteTimeUtc);
             if (File.Exists(binary) && File.GetLastWriteTimeUtc(binary) >= latest) return;
             var cargoBin = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cargo", "bin");
             var compiler = Path.Combine(cargoBin, Application.platform == RuntimePlatform.WindowsEditor ? "rustc.exe" : "rustc");
             var helper = Path.Combine(project, "Library", Application.platform == RuntimePlatform.WindowsEditor ? "build-dance.exe" : "build-dance");
-            Run(compiler, Quote(Path.Combine(project, "Tools", "build-dance.rs")) + " -o " + Quote(helper), project, cargoBin);
+            Run(compiler, Quote(Path.Combine(project, "tools", "build-dance.rs")) + " -o " + Quote(helper), project, cargoBin);
             Run(helper, platform, project, cargoBin);
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
