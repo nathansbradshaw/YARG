@@ -12,15 +12,12 @@ using YARG.Core.Input;
 using YARG.Core.Replays;
 using YARG.Gameplay.HUD;
 using YARG.Gameplay.Visuals;
-using YARG.Helpers.Extensions;
 using YARG.Player;
-using YARG.Playback;
-using YARG.Themes;
 
 namespace YARG.Gameplay.Player
 {
-    // Uses the same prefab, camera, material, receptors, pools and HUD as the
-    // existing highways. Only chart timing and judgments come from the Rust mode.
+    // Uses the existing highway prefab, camera, material, pools and HUD.
+    // Rust supplies YACE's arrows, beat colors, motion and judgments.
     public sealed class DancePlayer : TrackPlayer
     {
         public DanceEngine Engine { get; private set; }
@@ -28,7 +25,11 @@ namespace YARG.Gameplay.Player
         public override bool ShouldUpdateInputsOnResume => true;
         protected override float[] StarMultiplierThresholds { get; set; } = new[] { .10f, .25f, .45f, .65f, .85f, 1f };
         public float UnitsPerBeat { get; private set; }
-        private FretArray _frets;
+        public DanceHighwaySkin Skin { get; private set; }
+        private readonly MeshRenderer[] _receptors = new MeshRenderer[4];
+        private readonly double[] _hitTimes = { -100, -100, -100, -100 };
+        private readonly Color[] _hitColors = new Color[4];
+        private readonly bool[] _pressed = new bool[4], _held = new bool[4];
         private GameObject _noteTemplate;
         private readonly DanceRenderNote[] _visible = new DanceRenderNote[500];
         private readonly HashSet<int> _visibleIndices = new();
@@ -76,35 +77,27 @@ namespace YARG.Gameplay.Player
             ComboMeter.Initialize(player.EnginePreset, 1, GameManager.Players.Count > 1);
             TrackMaterial.Initialize(player.HighwayPreset);
             CameraPositioner.Initialize(player.CameraPreset);
-            _frets = GetComponentInChildren<FretArray>(true);
-            _frets.Initialize(new Dictionary<int, int> { {1,0}, {2,1}, {3,2}, {4,3} }, 4,
-                null, player.ColorProfile.FiveFretGuitar, player.ThemePreset, VisualStyle.FiveFretGuitar);
+            GetComponentInChildren<FretArray>(true).gameObject.SetActive(false);
+            Skin = new DanceHighwaySkin();
+            for (int lane = 0; lane < 4; lane++)
+            {
+                _receptors[lane] = Skin.Create(transform, "YACE arrow receptor", Skin.Receptor, NotePool.Prefab.layer);
+                _receptors[lane].transform.localPosition = new Vector3(-.75f + .5f * lane, 0, Skin.Data.ReceptorZ);
+                _receptors[lane].transform.localRotation = Skin.Rotation(lane);
+            }
             _noteTemplate = CreateNoteTemplate();
             NotePool.SetPrefabAndReset(_noteTemplate);
-            GameManager.BeatEventHandler.Visual.Subscribe(_frets.PulseFretColors, BeatEventType.StrongBeat);
             UpdateUnitsPerBeat();
         }
 
         private GameObject CreateNoteTemplate()
         {
-            var theme = ThemeManager.Instance.GetThemeContainer(Player.ThemePreset, VisualStyle.FiveFretGuitar).GetThemeComponent();
-            var models = theme.GetNoteModelsForVisualStyle(VisualStyle.FiveFretGuitar, false);
-            var defaults = ThemeManager.Instance.GetThemeContainer(ThemePreset.Default, VisualStyle.FiveFretGuitar)
-                .GetThemeComponent().GetNoteModelsForVisualStyle(VisualStyle.FiveFretGuitar, false);
-            foreach (var pair in defaults) if (!models.ContainsKey(pair.Key)) models.Add(pair.Key, pair.Value);
             var template = new GameObject("Dance themed highway note");
             template.SetActive(false);
             template.transform.SetParent(transform, false);
             template.layer = NotePool.Prefab.layer;
             var visual = template.AddComponent<DanceHighwayNote>();
-            visual.Normal = NoteGroup.CreateNoteGroupFromTheme(template.transform, models[ThemeNoteType.Normal]);
-            visual.Lift = NoteGroup.CreateNoteGroupFromTheme(template.transform, models[ThemeNoteType.HOPO]);
-            var drums = ThemeManager.Instance.GetThemeContainer(ThemePreset.Default, VisualStyle.FourLaneDrums)
-                .GetThemeComponent().GetNoteModelsForVisualStyle(VisualStyle.FourLaneDrums, false);
-            visual.Mine = NoteGroup.CreateNoteGroupFromTheme(template.transform,
-                drums.TryGetValue(ThemeNoteType.Cymbal, out var mine) ? mine : models[ThemeNoteType.Tap]);
-            foreach (var group in new[] { visual.Normal, visual.Lift, visual.Mine })
-                group.transform.SetLayerRecursive(template.layer);
+            visual.Glyph = Skin.Create(template.transform, "YACE vector arrow", Skin.Arrow, template.layer);
             var sustain = NotePool.Prefab.GetComponentsInChildren<SustainLine>(true)
                 .First(s => s.gameObject.name == "Normal Sustain Line");
             visual.Sustain = Instantiate(sustain.gameObject, template.transform).GetComponent<SustainLine>();
@@ -113,8 +106,7 @@ namespace YARG.Gameplay.Player
 
         private void UpdateUnitsPerBeat()
         {
-            var bpm = Engine.Chart.Timing["events"]?.FirstOrDefault(e => (string)e["kind"] == "BPMS" && (double)e["beat"] == 0)?["values"]?[0];
-            UnitsPerBeat = (float)(60 / (bpm == null ? 120 : (double)bpm)) * NoteSpeed;
+            UnitsPerBeat = NoteSpeed * Skin.Data.ScrollFactor;
         }
 
         protected override void UpdateVisuals(double time)
@@ -122,7 +114,7 @@ namespace YARG.Gameplay.Player
             if (Engine == null) return;
             UpdateUnitsPerBeat();
             TrackView.UpdateHUDPosition(HighwayIndex, HighwayCount);
-            TrackMaterial.SetTrackScroll(time, NoteSpeed);
+            TrackMaterial.SetTrackScroll(Engine.VisualBeat(time), UnitsPerBeat);
             TrackMaterial.GrooveMode = false;
             TrackMaterial.StarpowerMode = false;
             var stats = Engine.Stats;
@@ -133,7 +125,7 @@ namespace YARG.Gameplay.Player
             SunburstEffects.SetSunburstEffects(false, false, 1);
             TrackView.UpdateNoteStreak(stats.Combo);
             UpdateHighwayNotes(time);
-            UpdateBeatlines(time);
+            UpdateReceptors(time);
             bool lower = time > Engine.Chart.EndTime + 1 || GameManager.PlayerHasFailed;
             if (lower != _lowered)
             {
@@ -150,9 +142,14 @@ namespace YARG.Gameplay.Player
             {
                 var state = Engine.State(visual.Index);
                 if (visual.Render.State == 0 && state is 1 or 3 or 4)
-                    _frets.PlayHitAnimation(visual.Render.Lane + 1);
+                {
+                    _hitTimes[visual.Render.Lane] = time;
+                    _hitColors[visual.Render.Lane] = DanceHighwaySkin.NoteColor(Engine.Chart.Notes[visual.Index].Beat);
+                }
             }
-            int count = Engine.Render(time, -2 / UnitsPerBeat, (ZeroFadePosition + 4 - STRIKE_LINE_POS) / UnitsPerBeat, _visible);
+            int count = Engine.Render(time, -2 / UnitsPerBeat,
+                (ZeroFadePosition + 4 - Skin.Data.ReceptorZ) / UnitsPerBeat, _visible);
+            Array.Clear(_held, 0, _held.Length);
             _visibleIndices.Clear();
             for (int i = 0; i < count; i++) _visibleIndices.Add(_visible[i].Index);
             foreach (var visual in _previous)
@@ -160,6 +157,7 @@ namespace YARG.Gameplay.Player
             for (int i = 0; i < count; i++)
             {
                 var render = _visible[i];
+                if (render.State == 3) _held[render.Lane] = true;
                 var visual = NotePool.GetByKey(render.Index) as DanceHighwayNote;
                 if (visual == null)
                 {
@@ -174,21 +172,23 @@ namespace YARG.Gameplay.Player
             }
         }
 
-        private void UpdateBeatlines(double time)
+        private void UpdateReceptors(double time)
         {
-            while (BeatlineIndex < Beatlines.Count && Beatlines[BeatlineIndex].Time <= time + SpawnTimeOffset)
+            double beat = Engine.VisualBeat(time);
+            float pulse = (float)(1 - (beat - Math.Floor(beat))) * .08f;
+            for (int lane = 0; lane < 4; lane++)
             {
-                var beat = Beatlines[BeatlineIndex++];
-                if (beat.Time < time - .5 || !BeatlinePool.CanSpawnAmount(1)) continue;
-                var line = BeatlinePool.TakeWithoutEnabling() as BeatlineElement;
-                if (line == null) continue;
-                line.BeatlineRef = beat;
-                line.EnableFromPool();
+                float flash = Mathf.Clamp01(1 - (float)(time - _hitTimes[lane]) / .24f);
+                bool active = _held[lane] || _pressed[lane];
+                Color color = flash > 0 ? _hitColors[lane] : active ? new Color32(241, 215, 140, 255) : new Color32(147, 166, 187, 255);
+                Skin.Paint(_receptors[lane], color, 1, active ? .65f : flash * flash);
+                _receptors[lane].transform.localRotation = Skin.Rotation(lane);
+                _receptors[lane].transform.localScale = Vector3.one * (1 + pulse + flash * .12f);
             }
         }
 
         public bool HasVisibleField => TrackCamera != null && CameraPositioner != null && TrackMaterial != null
-            && _frets != null && _frets.Frets.Count == 4 && NotePool.Prefab.GetComponent<DanceHighwayNote>() != null;
+            && _receptors.All(r => r != null) && NotePool.Prefab.GetComponent<DanceHighwayNote>() != null;
 
         protected override void UpdateInputs(double time)
         {
@@ -198,12 +198,14 @@ namespace YARG.Gameplay.Player
         protected override bool InterceptInput(ref GameInput input) => input.Action is < 0 or > 3;
         protected override void OnInputQueued(GameInput input)
         {
-            if (input.Action is >= 0 and < 4) _frets.SetPressed(input.Action + 1, input.Button);
+            if (input.Action is >= 0 and < 4) _pressed[input.Action] = input.Button;
         }
         protected override void ResetVisuals()
         {
             base.ResetVisuals();
-            _frets?.ResetAll();
+            Array.Clear(_pressed, 0, _pressed.Length);
+            Array.Clear(_held, 0, _held.Length);
+            for (int i = 0; i < 4; i++) _hitTimes[i] = -100;
             BeatlineIndex = 0;
         }
         public override void Rewind(double visualTime) { }
@@ -228,9 +230,9 @@ namespace YARG.Gameplay.Player
         }
         protected override void FinishDestruction()
         {
-            if (_frets != null) GameManager.BeatEventHandler.Visual.Unsubscribe(_frets.PulseFretColors);
             Engine?.Dispose();
             if (_noteTemplate != null) Destroy(_noteTemplate);
+            Skin?.Dispose();
         }
     }
 }

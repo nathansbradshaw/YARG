@@ -11,6 +11,7 @@ using YARG.Core;
 using YARG.Core.Dance;
 using YARG.Core.Game;
 using YARG.Gameplay.Player;
+using YARG.Gameplay.Visuals;
 using YARG.Helpers;
 using YARG.Menu.Persistent;
 using YARG.Player;
@@ -52,6 +53,9 @@ namespace YARG.Gameplay
                 SettingsManager.Settings.SongFolders.Add(folder);
                 SettingsManager.Settings.SaveScoresWithBots.Value = true;
                 SettingsManager.Settings.PauseOnFocusLoss.Value = false;
+                // This isolated virtual-keyboard check must also run while Codex
+                // or Unity has focus. Production input behavior is unchanged.
+                InputSystem.settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
                 using (var context = new LoadingContext()) await SongContainer.RunRefresh(false, context);
                 var song = SongContainer.Songs.Single(s => s.HasInstrument(Instrument.Dance) && s.HasInstrument(Instrument.FourKey)
                     && s.HasInstrument(Instrument.FiveFretGuitar) && s.HasInstrument(Instrument.FourLaneDrums) && s.HasInstrument(Instrument.Vocals));
@@ -90,11 +94,29 @@ namespace YARG.Gameplay
                 var keyboardNotes = manager.Chart.DanceParts.GetChart(Instrument.FourKey, Difficulty.Expert).Notes;
                 int previousMask = 0;
                 bool captured = false;
+                (DanceHighwayNote Note, int Index, float Z)[] probes = null;
+                bool downwardFlowVerified = false;
+                bool highwayOrientationVerified = false;
                 var deadline = DateTime.UtcNow.AddSeconds(40);
                 while (manager != null && GlobalVariables.Instance.CurrentScene == SceneIndex.Gameplay)
                 {
                     if (DateTime.UtcNow > deadline) throw new TimeoutException("Gameplay did not reach results");
                     var time = manager.InputTime;
+                    if (probes == null && manager.VisualTime >= 3)
+                    {
+                        var arrows = FindObjectsByType<DanceHighwayNote>(FindObjectsSortMode.None);
+                        probes = manager.Players.OfType<DancePlayer>().Select(p => arrows.First(n =>
+                            n.Owner == p && n.Render.State == 0 && p.Engine.Chart.Notes[n.Index].Time > manager.VisualTime + 1))
+                            .Select(n => (n, n.Index, n.transform.localPosition.z)).ToArray();
+                    }
+                    if (!downwardFlowVerified && probes != null && manager.VisualTime >= 3.3)
+                    {
+                        if (probes.Length != 2 || probes.Any(p => p.Note.Index != p.Index || p.Note.transform.localPosition.z >= p.Z))
+                            throw new Exception("Arrows did not move down the highway toward the player");
+                        if (probes.Any(p => Vector3.Dot(p.Note.Glyph.transform.up, p.Note.Owner.transform.up) < .999f))
+                            throw new Exception("Arrows are not aligned with the highway surface");
+                        downwardFlowVerified = highwayOrientationVerified = true;
+                    }
                     int mask = 0;
                     foreach (var note in keyboardNotes)
                         if (note.Judgable && note.Kind != "mine" && time >= note.Time && time < Math.Max(note.EndTime + .02, note.Time + .15)) mask |= 1 << note.Lane;
@@ -120,6 +142,7 @@ namespace YARG.Gameplay
                     .Timeout(TimeSpan.FromSeconds(40));
                 await UniTask.Delay(1000);
                 var scores = GlobalVariables.State.ScoreScreenStats.Value.PlayerScores;
+                if (!downwardFlowVerified || !highwayOrientationVerified) throw new Exception("Arrow motion/orientation was not verified");
                 File.WriteAllText(Path.Combine(output, "player-stats.json"), JsonConvert.SerializeObject(scores.Select(s => new {
                     instrument = s.Player.Profile.CurrentInstrument.ToString(), score = s.Stats.TotalScore,
                     hits = s.Stats.NotesHit, total = s.Stats.TotalNotes }), Formatting.Indented));
@@ -130,7 +153,7 @@ namespace YARG.Gameplay
                 if (!visualRun && (saved == null || saved.Score != keyboardScore.Stats.TotalScore)) throw new Exception("4-key score was not persisted");
                 var result = scores.Select(s => new { instrument = s.Player.Profile.CurrentInstrument.ToString(),
                     score = s.Stats.TotalScore, hits = s.Stats.NotesHit, total = s.Stats.TotalNotes, fullCombo = s.Stats.IsFullCombo }).ToArray();
-                File.WriteAllText(Path.Combine(output, "result.json"), JsonConvert.SerializeObject(new { passed = true, keyboardInputVerified = !visualRun, scorePersistenceVerified = !visualRun, players = result }, Formatting.Indented));
+                File.WriteAllText(Path.Combine(output, "result.json"), JsonConvert.SerializeObject(new { passed = true, downwardFlowVerified, highwayOrientationVerified, keyboardInputVerified = !visualRun, scorePersistenceVerified = !visualRun, players = result }, Formatting.Indented));
                 ScreenCapture.CaptureScreenshot(Path.Combine(output, "results.png"));
                 Debug.Log("DANCE_ACCEPTANCE_PASSED: five players, shared audio clock, dance fields, and score screen");
                 await UniTask.Delay(1000);

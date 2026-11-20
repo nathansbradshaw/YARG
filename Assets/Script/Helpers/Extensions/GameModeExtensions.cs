@@ -114,6 +114,11 @@ namespace YARG.Helpers.Extensions
             }
 
             possibleOptions.AddRange(unconditionalOptionsPerGameMode);
+            if (gameMode is GameMode.Dance or GameMode.FourKey)
+            {
+                // The YACE noteskin has beat-based colors, independently of guitar themes.
+                possibleOptions.RemoveAll(p => p.setting is ProfileSettingStrings.THEME_SELECT or ProfileSettingStrings.COLOR_PROFILE_SELECT);
+            }
 
             // Split into a private method for readability
             possibleOptions.AddRange(ConditionalGameModeSettings(gameMode, dependencyNamesAndValues));

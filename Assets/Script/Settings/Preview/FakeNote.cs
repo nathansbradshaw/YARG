@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using YARG.Core;
+using YARG.Core.Dance;
 using YARG.Gameplay;
 using YARG.Gameplay.Player;
 using YARG.Gameplay.Visuals;
@@ -27,6 +28,7 @@ namespace YARG.Settings.Preview
         public FakeTrackPlayer FakeTrackPlayer { get; set; }
 
         private NoteGroup _currentNoteGroup;
+        [SerializeField] private MeshRenderer _danceGlyph;
 
         // We can't use a dictionary here (Unity L)
         [SerializeField]
@@ -36,6 +38,12 @@ namespace YARG.Settings.Preview
 
         public void EnableFromPool()
         {
+            if (_danceGlyph != null)
+            {
+                transform.localPosition = new Vector3(-.75f + (NoteRef.Fret - 1) * .5f, 0, 0);
+                OnSettingChanged(); Update(); gameObject.SetActive(true);
+                return;
+            }
             // Disable all note groups
             foreach (var noteGroup in _noteGroups)
             {
@@ -85,6 +93,12 @@ namespace YARG.Settings.Preview
             var cameraPreset = PresetsTab.GetLastSelectedPreset(CustomContentManager.CameraSettings);
             var colorProfile = PresetsTab.GetLastSelectedPreset(CustomContentManager.ColorProfiles);
             var highwayPreset = PresetsTab.GetLastSelectedPreset(CustomContentManager.HighwayPresets);
+            if (_danceGlyph != null)
+            {
+                _danceGlyph.transform.localRotation = FakeTrackPlayer.DanceSkin.Rotation(NoteRef.Fret - 1);
+                FakeTrackPlayer.DanceSkin.Paint(_danceGlyph, DanceHighwaySkin.NoteColor(NoteRef.Time * 2));
+                return;
+            }
 
             // Update color
             var color = FakeTrackPlayer.CurrentGameModeInfo.NoteColorProvider(colorProfile, NoteRef);
@@ -96,6 +110,13 @@ namespace YARG.Settings.Preview
 
         protected void Update()
         {
+            if (_danceGlyph != null)
+            {
+                transform.localPosition = transform.localPosition.WithZ(DanceNative.yarg_dance_position(
+                    (float)(NoteRef.Time - FakeTrackPlayer.PreviewTime) * 2, FakeTrackPlayer.NOTE_SPEED));
+                if (NoteRef.Time < FakeTrackPlayer.PreviewTime) ParentPool.Return(this);
+                return;
+            }
             float z =
                 TrackPlayer.STRIKE_LINE_POS                            // Shift origin to the strike line
                 + (float) (NoteRef.Time - FakeTrackPlayer.PreviewTime) // Get time of note relative to now
@@ -141,6 +162,14 @@ namespace YARG.Settings.Preview
             fakeNote.transform.SetLayerRecursive(LayerMask.NameToLayer("Settings Preview"));
 
             return notePrefab;
+        }
+
+        public static GameObject CreateFakeDanceNote(DanceHighwaySkin skin)
+        {
+            var prefab = new GameObject("YACE preview arrow");
+            var note = prefab.AddComponent<FakeNote>();
+            note._danceGlyph = skin.Create(prefab.transform, "YACE arrow", skin.Arrow, LayerMask.NameToLayer("Settings Preview"));
+            return prefab;
         }
     }
 }

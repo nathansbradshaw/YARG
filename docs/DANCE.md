@@ -50,9 +50,14 @@ playing or loading its replay.
   press within 500 ms. Mines use a 90 ms window.
 - Timing grades at 22.5 / 45 / 90 / 135 / 180 ms from the note. These are this mode's
   fixed defaults, rather than a claim of parity with every StepMania judge preset.
-- Four-lane YARG highways using the existing highway prefab, theme note models,
-  receptors, sustain renderer, cameras and HUD alongside the other instruments.
-  Highway, camera, theme and color presets work through the normal settings.
+- Four-lane YARG highways using the existing highway prefab, sustain renderer,
+  cameras and HUD alongside the other instruments. YACE's beveled vector arrows
+  lie along the highway surface and scroll down toward arrow receptors at the
+  player end, with YACE's beat-subdivision palette,
+  receptor pulses, hit flashes, gold holds and purple rolls. Both new profiles
+  use that noteskin. Guitar/drum themes and lane colors do not replace it.
+  Highway and camera presets work through the normal settings; note speed
+  controls the arrow spacing and travel speed.
   Hit feedback, combo, normal results, saved scores, bots and input replays.
 - Practice ranges and replay seeking use band song time. Dance does not add
   star-power phrases or mute the shared recording on a miss.
