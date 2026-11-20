@@ -22,10 +22,10 @@ namespace YARG.Venue
 
         public void BuildCommands(SongChart chart, AnimatorCommandQueue queue)
         {
-            var drumsId = chart.ProDrums.GetDifficulty(Difficulty.Expert);
+            var drumsId = chart.ProDrums.GetAnimationDifficulty();
             if (drumsId.Notes.Count == 0)
             {
-                drumsId = chart.FourLaneDrums.GetDifficulty(Difficulty.Expert);
+                drumsId = chart.FourLaneDrums.GetAnimationDifficulty();
             }
 
             foreach (var dNote in drumsId.Notes)

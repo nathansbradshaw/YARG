@@ -2,6 +2,7 @@
 using UnityEngine;
 using YARG.Core.Chart;
 using YARG.Gameplay;
+using YARG.Core.Logging;
 
 namespace YARG.Venue.Stage
 {
@@ -21,6 +22,19 @@ namespace YARG.Venue.Stage
 
         protected override void OnChartLoaded(SongChart chart)
         {
+            // Older venue bundles may not have serialized the stage root.
+            if (_venue == null)
+            {
+                var manager = GetComponentInParent<BundleBackgroundManager>(true);
+                if (manager == null)
+                {
+                    YargLogger.LogWarning("Stage manager has no venue root; stage effects are unavailable.");
+                    return;
+                }
+
+                _venue = manager.gameObject;
+            }
+
             _stageElements = _venue.GetComponentsInChildren<StageElement>();
 
             if (_stageElements.Length == 0)

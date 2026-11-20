@@ -22,7 +22,7 @@ namespace YARG.Venue
 
         public void BuildCommands(SongChart chart, AnimatorCommandQueue queue)
         {
-            var keysId = chart.Keys.GetDifficulty(Difficulty.Expert);
+            var keysId = chart.Keys.GetAnimationDifficulty();
             foreach (var kNote in keysId.Notes)
             {
                 double t = kNote.Time - _leadingFrames / 60.0;

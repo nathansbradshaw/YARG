@@ -77,14 +77,12 @@ namespace YARG.Venue.Characters
 
         protected override void OnChartLoaded(SongChart chart)
         {
-            // Get the expert notes for each track
-            // TODO: This should get the highest available difficulty, in case Expert doesn't exist
-            var guitarId = chart.FiveFretGuitar.GetDifficulty(Difficulty.Expert);
-            var bassId = chart.FiveFretBass.GetDifficulty(Difficulty.Expert);
-            var keysId = chart.Keys.GetDifficulty(Difficulty.Expert);
-            var proKeysId = chart.ProKeys.GetDifficulty(Difficulty.Expert);
+            var guitarId = chart.FiveFretGuitar.GetAnimationDifficulty();
+            var bassId = chart.FiveFretBass.GetAnimationDifficulty();
+            var keysId = chart.Keys.GetAnimationDifficulty();
+            var proKeysId = chart.ProKeys.GetAnimationDifficulty();
             var vocalsId = chart.Vocals.Parts[0].CloneAsInstrumentDifficulty();
-            var drumsId = chart.ProDrums.GetDifficulty(Difficulty.Expert);
+            var drumsId = chart.ProDrums.GetAnimationDifficulty();
 
             var guitarTrack = chart.GetFiveFretTrack(Instrument.FiveFretGuitar);
             var bassTrack = chart.GetFiveFretTrack(Instrument.FiveFretBass);

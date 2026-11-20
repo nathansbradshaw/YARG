@@ -20,11 +20,11 @@ namespace YARG.Venue
 
         public void BuildCommands(SongChart chart, AnimatorCommandQueue queue)
         {
-            var proBass22 = chart.ProBass_22Fret.GetDifficulty(Difficulty.Expert);
+            var proBass22 = chart.ProBass_22Fret.GetAnimationDifficulty();
             var proBassNoteList = proBass22.Notes;
             if (proBassNoteList.Count == 0)
             {
-                var proBass17 = chart.ProBass_17Fret.GetDifficulty(Difficulty.Expert);
+                var proBass17 = chart.ProBass_17Fret.GetAnimationDifficulty();
                 proBassNoteList = proBass17.Notes;
             }
 
