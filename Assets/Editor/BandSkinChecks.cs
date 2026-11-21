@@ -12,6 +12,15 @@ namespace Editor
     public static class BandSkinChecks
     {
         public static void BuildAndRun() { OsrsCharacterBuilder.Build(); Run(); }
+        public static void RunCast()
+        {
+            var root=Environment.GetEnvironmentVariable("YARG_NPC_ROOT");
+            foreach(var npc in new[]{"Hans-3105","Cook-4626","Father_Aereck-2812"})
+            {
+                Environment.SetEnvironmentVariable("YARG_BAND_MODEL",Path.Combine(root,npc,"existing-rig",npc.ToLowerInvariant()+".yargchar"));
+                Run();
+            }
+        }
 
         public static void Run()
         {
@@ -42,8 +51,11 @@ namespace Editor
                     {
                         var pose = new HumanPose(); poseHandler.GetHumanPose(ref pose);
                         for (int i = 0; i < pose.muscles.Length; i++)
+                        {
                             if (HumanTrait.MuscleName[i].Contains("Arm") || HumanTrait.MuscleName[i].Contains("Forearm"))
                                 pose.muscles[i] = 0.35f;
+                            if(HumanTrait.MuscleName[i].Contains("Spine")||HumanTrait.MuscleName[i].Contains("Chest"))pose.muscles[i]=0.65f;
+                        }
                         poseHandler.SetHumanPose(ref pose);
                     }
                     follower.CopyPose(); renderer.BakeMesh(after);
@@ -54,6 +66,65 @@ namespace Editor
                         Vector3.Distance(renderer.bounds.center, animator.transform.position) > 4f)
                         throw new InvalidOperationException($"Skin transfer failed for {actor.Type}: {moved} moved, bounds={renderer.bounds}");
                     Debug.Log($"BAND_SKIN_ROLE_PASS {actor.Type}: {moved} vertices moved; authored controller, props and chart actor retained; bounds={renderer.bounds}");
+                    var target=skin.GetComponent<Animator>();
+                    using var sourceRead=new HumanPoseHandler(animator.avatar,animator.transform);
+                    using var targetRead=new HumanPoseHandler(target.avatar,target.transform);
+                    var sourcePose=new HumanPose();var targetPose=new HumanPose();
+                    var chains=new[]
+                    {
+                        new[]{HumanBodyBones.LeftUpperArm,HumanBodyBones.LeftLowerArm,HumanBodyBones.LeftHand},
+                        new[]{HumanBodyBones.RightUpperArm,HumanBodyBones.RightLowerArm,HumanBodyBones.RightHand}
+                    };
+                    float Segment(HumanBodyBones a,HumanBodyBones b)=>Vector3.Distance(target.GetBoneTransform(a).position,target.GetBoneTransform(b).position);
+                    var lengths=chains.Select(c=>new[]{Segment(c[0],c[1]),Segment(c[1],c[2])}).ToArray();
+                    float seamGap=0;
+                    var waist=renderer.sharedMesh.vertices.Select((v,i)=>(v,i)).Where(p=>p.v.y>0.95f&&p.v.y<1.3f).GroupBy(p=>p.v);
+                    var posedVertices=after.vertices;
+                    foreach(var seam in waist)
+                        foreach(var vertex in seam)seamGap=Mathf.Max(seamGap,Vector3.Distance(posedVertices[seam.First().i],posedVertices[vertex.i]));
+                    Debug.Log($"BAND_WAIST_SEAM {actor.Type} gap={seamGap:F5}");
+                    float worst=1;string edge="";
+                    var bind=renderer.sharedMesh.vertices;var triangles=renderer.sharedMesh.triangles;var weights=renderer.sharedMesh.boneWeights;
+                    for(int triangle=0;triangle<triangles.Length;triangle+=3)
+                    for(int corner=0;corner<3;corner++)
+                    {
+                        int a=triangles[triangle+corner],b=triangles[triangle+(corner+1)%3];
+                        if(bind[a].y<0.98f||bind[a].y>1.3f||bind[b].y<0.98f||bind[b].y>1.3f)continue;
+                        float rest=Vector3.Distance(bind[a],bind[b]);if(rest<0.015f)continue;
+                        float stretch=Vector3.Distance(posedVertices[a],posedVertices[b])/rest;
+                        if(stretch>worst){worst=stretch;edge=$"{renderer.bones[weights[a].boneIndex0].name}/{renderer.bones[weights[b].boneIndex0].name}";}
+                    }
+                    Debug.Log($"BAND_WAIST_STRETCH {actor.Type} max={worst:F3} bones={edge}");
+                    if((model.name=="Hans-3105"||model.name=="Cook-4626"||model.name=="Father_Aereck-2812") &&
+                        (worst>1.6f||seamGap>0.004f))
+                        throw new InvalidOperationException($"OSRS waist deformation regressed for {model.name}: stretch={worst}, seam={seamGap}");
+                    foreach(var offset in new[]{Vector3.zero,new Vector3(0.7f,0.2f,-0.3f)})
+                    {
+                        actor.transform.position+=offset;actor.transform.rotation*=Quaternion.Euler(0,35,0);
+                        follower.CopyPose();
+                        sourceRead.GetHumanPose(ref sourcePose);targetRead.GetHumanPose(ref targetPose);
+                        float rotationError=Quaternion.Angle(sourcePose.bodyRotation,targetPose.bodyRotation);
+                        var hips=Vector3.Distance(animator.GetBoneTransform(HumanBodyBones.Hips).position,target.GetBoneTransform(HumanBodyBones.Hips).position);
+                        var left=Vector3.Distance(animator.GetBoneTransform(HumanBodyBones.LeftHand).position,target.GetBoneTransform(HumanBodyBones.LeftHand).position);
+                        var right=Vector3.Distance(animator.GetBoneTransform(HumanBodyBones.RightHand).position,target.GetBoneTransform(HumanBodyBones.RightHand).position);
+                        var fixedPosition=target.GetBoneTransform(HumanBodyBones.Hips).position;
+                        for(int frame=0;frame<120;frame++)follower.CopyPose();
+                        var drift=Vector3.Distance(fixedPosition,target.GetBoneTransform(HumanBodyBones.Hips).position);
+                        if(hips>0.003f||drift>0.003f||rotationError>0.5f)
+                            throw new InvalidOperationException($"Pelvis transfer drift for {actor.Type}");
+                        for(int arm=0;arm<chains.Length;arm++)
+                        {
+                            var chain=chains[arm];var shoulder=target.GetBoneTransform(chain[0]).position;
+                            var goal=animator.GetBoneTransform(chain[2]).position;
+                            float reach=lengths[arm][0]+lengths[arm][1];
+                            float unavoidable=Mathf.Max(0,Vector3.Distance(shoulder,goal)-reach);
+                            float error=Vector3.Distance(target.GetBoneTransform(chain[2]).position,goal);
+                            if(error>unavoidable+0.004f||Mathf.Abs(Segment(chain[0],chain[1])-lengths[arm][0])>0.003f||
+                                Mathf.Abs(Segment(chain[1],chain[2])-lengths[arm][1])>0.003f)
+                                throw new InvalidOperationException($"Grip missed reachable target or stretched bones for {actor.Type}: {error} vs {unavoidable}");
+                        }
+                        Debug.Log($"BAND_ANCHOR_METRIC {actor.Type} offset={offset} hips={hips:F5} left={left:F5} right={right:F5} drift={drift:F5} rotation={rotationError:F3}");
+                    }
                     Object.DestroyImmediate(before); Object.DestroyImmediate(after);
                     count++;
                 }
