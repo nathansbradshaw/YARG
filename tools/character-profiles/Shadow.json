@@ -1,0 +1,25 @@
+{
+  "model": "ShadowRig.fbx",
+  "template": "Sonic",
+  "scale": 1,
+  "rotation": [
+    90,
+    0,
+    0
+  ],
+  "materials": {
+    "chr_Shadow_HD_body": "chr_shadow_body01_dif_HD.dds",
+    "chr_Shadow_HD_mouth": "chr_shadow_body01_dif_HD.dds",
+    "chr_Shadow_HD_arm": "chr_shadow_body01_dif_HD.dds",
+    "chr_Shadow_HD_nose": "chr_shadow_body01_dif_HD.dds",
+    "chr_Shadow_HD_cloth": "chr_shadow_cloth_dif_HD.dds",
+    "chr_Shadow_HD_ring": "chr_shadow_cloth_dif_HD.dds",
+    "chr_Shadow_HD_shoe": "chr_shadow_shoes_dif_HD.dds",
+    "chr_Shadow_HD_eyeL": "chr_shadow_eye_dif_HD.dds",
+    "chr_Shadow_HD_eyeR": "chr_shadow_eye_dif_HD.dds",
+    "chr_Shadow_HD_fur03": "chr_shadow_fur_dif_HD.dds",
+    "chr_Shadow_HD_fur02": "chr_shadow_fur_dif_HD.dds",
+    "chr_Shadow_HD_fur01": "chr_shadow_fur_dif_HD.dds"
+  },
+  "openEyelids": true
+}

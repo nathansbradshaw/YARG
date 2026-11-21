@@ -546,15 +546,51 @@ fn main() -> Result<()> {
     }
     let cache_dir = Path::new(&a[1]);
     let output = Path::new(&a[2]);
-    fs::create_dir_all(output)?;
     let before = fs::metadata(cache_dir.join("main_file_cache.dat2"))?.modified()?;
     let mut cache = Cache::new(cache_dir)?;
     let ids = file_ids(&cache.archive(255, 2)?, 9)?;
     let files = split_files(&cache.archive(2, 9)?, ids.len())?;
+    if a[2] == "--find" {
+        for (id, bytes) in ids.iter().zip(&files) {
+            let matches = a[3..].iter().any(|name| {
+                let mut token = vec![2];
+                token.extend_from_slice(name.as_bytes());
+                token.push(0);
+                bytes
+                    .windows(token.len())
+                    .any(|w| w.eq_ignore_ascii_case(&token))
+            });
+            if !matches {
+                continue;
+            }
+            match npc(bytes) {
+                Ok(n) => println!("NPC {id}: {} models={:?}", n.name, n.models),
+                Err(e) => println!("UNSUPPORTED {id}: {e}"),
+            }
+        }
+        if fs::metadata(cache_dir.join("main_file_cache.dat2"))?.modified()? != before {
+            return Err("cache changed during lookup; rerun with client closed".into());
+        }
+        return Ok(());
+    }
+    fs::create_dir_all(output)?;
     for text in &a[3..] {
         let id: usize = text.parse()?;
         let index = ids.iter().position(|x| *x == id).ok_or("NPC absent")?;
-        let npc = npc(&files[index])?;
+        let mut npc = npc(&files[index])?;
+        let excluded: Vec<usize> = std::env::var("YARG_OSRS_EXCLUDE_MODELS")
+            .unwrap_or_default()
+            .split(',')
+            .filter(|s| !s.is_empty())
+            .map(str::parse)
+            .collect::<std::result::Result<_, _>>()?;
+        if excluded.len() > 16 {
+            return Err("at most 16 explicit equipment exclusions".into());
+        }
+        npc.models.retain(|id| !excluded.contains(id));
+        if npc.models.is_empty() {
+            return Err("equipment exclusions removed the entire NPC".into());
+        }
         println!("NPC {id}: {} models={:?}", npc.name, npc.models);
         let mut meshes = Vec::new();
         for &model_id in &npc.models {
@@ -574,7 +610,9 @@ fn main() -> Result<()> {
         let mut positions = Vec::new();
         let mut uvs = Vec::new();
         let mut bone_groups = Vec::new();
-        for m in &meshes {
+        let mut parts = Vec::new();
+        for (m, model_id) in meshes.iter().zip(&npc.models) {
+            let start = positions.len();
             for (face, color) in m.f.iter().zip(&m.colors) {
                 let color = *npc.recolors.get(color).unwrap_or(color);
                 for &i in face.iter().rev() {
@@ -591,13 +629,23 @@ fn main() -> Result<()> {
                     bone_groups.push(m.groups[i]);
                 }
             }
+            parts.push(format!(
+                "{{\"id\":{model_id},\"start\":{start},\"count\":{}}}",
+                positions.len() - start
+            ));
         }
         fs::write(
             dir.join("source-mesh.json"),
-            format!("{{\"positions\":{positions:?},\"uvs\":{uvs:?},\"groups\":{bone_groups:?}}}"),
+            format!("{{\"positions\":{positions:?},\"uvs\":{uvs:?},\"groups\":{bone_groups:?},\"parts\":[{}]}}",parts.join(",")),
         )?;
         palette(&dir.join("palette.tga"))?;
         fs::write(dir.join("SOURCE.txt"),format!("Read-only local RuneLite cache extraction. NPC {}: {}. Models {:?}. No game geometry may be committed to the fork.\n",id,npc.name,npc.models))?;
+        if !excluded.is_empty() {
+            fs::write(
+                dir.join("EXCLUDED-MODELS.txt"),
+                format!("Explicit omitted equipment IDs: {excluded:?}\n"),
+            )?;
+        }
         println!("EXPORTED {}", dir.display());
     }
     if fs::metadata(cache_dir.join("main_file_cache.dat2"))?.modified()? != before {

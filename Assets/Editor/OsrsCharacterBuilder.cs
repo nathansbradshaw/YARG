@@ -155,6 +155,7 @@ namespace Editor
 
         internal static void Render(GameObject root, string output)
         {
+            var layers=root.GetComponentsInChildren<Transform>(true).Select(t=>(t,t.gameObject.layer)).ToArray();
             var cameraRoot = new GameObject("Rig preview camera");
             var lightRoot = new GameObject("Rig preview light");
             var rt = new RenderTexture(768,768,24);
@@ -163,6 +164,8 @@ namespace Editor
             try
             {
                 var camera = cameraRoot.AddComponent<Camera>();
+                foreach(var pair in layers)pair.t.gameObject.layer=31;
+                camera.cullingMask=1<<31;
                 camera.transform.position = new Vector3(2.4f,1.6f,4f);
                 camera.transform.LookAt(new Vector3(0,0.9f,0));
                 camera.orthographic = true; camera.orthographicSize = 1.15f;
@@ -177,6 +180,7 @@ namespace Editor
             }
             finally
             {
+                foreach(var pair in layers)pair.t.gameObject.layer=pair.layer;
                 RenderTexture.active = previous;
                 Object.DestroyImmediate(image); Object.DestroyImmediate(rt);
                 Object.DestroyImmediate(cameraRoot); Object.DestroyImmediate(lightRoot);
