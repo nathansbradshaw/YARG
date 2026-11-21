@@ -11,6 +11,28 @@ namespace Editor
 {
     public static class BandSkinChecks
     {
+        public static void InspectVenues()
+        {
+            foreach(var file in Environment.GetEnvironmentVariable("YARG_BAND_VENUES").Split('|'))
+            {
+                var bundle=AssetBundle.LoadFromFile(file);
+                var stage=Object.Instantiate(bundle.LoadAsset<GameObject>(BundleBackgroundManager.BACKGROUND_PREFAB_PATH.ToLowerInvariant()));
+                try
+                {
+                    foreach(var actor in stage.GetComponentsInChildren<VenueCharacter>())
+                    {
+                        var animator=actor.GetComponent<Animator>();
+                        Debug.Log($"PROP_ACTOR {Path.GetFileName(file)} {actor.Type} component={actor.GetType().Name} rootMotion={animator?.applyRootMotion}");
+                        foreach(var r in actor.GetComponentsInChildren<Renderer>(true))
+                            Debug.Log($"PROP_RENDERER {actor.Type} {r.GetType().Name} {AnimationUtility.CalculateTransformPath(r.transform,actor.transform)} enabled={r.enabled} active={r.gameObject.activeSelf}");
+                    }
+                    foreach(var t in stage.GetComponentsInChildren<Transform>(true))
+                        if(t.name.ToLowerInvariant().Contains("mic")||t.name.ToLowerInvariant().Contains("stick"))
+                            Debug.Log($"PROP_OBJECT {AnimationUtility.CalculateTransformPath(t,stage.transform)} active={t.gameObject.activeSelf} renderer={t.GetComponent<Renderer>()?.GetType().Name}");
+                }
+                finally {Object.DestroyImmediate(stage);bundle.Unload(true);}
+            }
+        }
         public static void BuildAndRun() { OsrsCharacterBuilder.Build(); Run(); }
         public static void RunCast()
         {
@@ -41,7 +63,7 @@ namespace Editor
                     if (animator == null || !animator.isHuman) continue;
                     animator.Rebind(); animator.Update(0f);
                     var controller = animator.runtimeAnimatorController;
-                    int props = actor.GetComponentsInChildren<MeshRenderer>().Count(r => r.enabled);
+                    bool rootMotion = animator.applyRootMotion;
                     var skin = Object.Instantiate(model, actor.transform);
                     var follower = BandCharacterSkin.Attach(animator, skin);
                     var renderer = skin.GetComponentInChildren<SkinnedMeshRenderer>();
@@ -61,12 +83,23 @@ namespace Editor
                     follower.CopyPose(); renderer.BakeMesh(after);
                     int moved = before.vertices.Zip(after.vertices, (a,b) => Vector3.Distance(a,b)).Count(d => d > 0.01f);
                     if (moved < 10 || renderer.gameObject.layer != LayerMask.NameToLayer("Venue") || animator.runtimeAnimatorController != controller ||
-                        actor.GetComponentsInChildren<MeshRenderer>().Count(r => r.enabled) != props ||
+                        animator.applyRootMotion ||
                         stage.GetComponentsInChildren<VenueCharacter>().Count(c => c.isActiveAndEnabled) != actors.Length ||
                         Vector3.Distance(renderer.bounds.center, animator.transform.position) > 4f)
                         throw new InvalidOperationException($"Skin transfer failed for {actor.Type}: {moved} moved, bounds={renderer.bounds}");
                     Debug.Log($"BAND_SKIN_ROLE_PASS {actor.Type}: {moved} vertices moved; authored controller, props and chart actor retained; bounds={renderer.bounds}");
                     var target=skin.GetComponent<Animator>();
+                    var sourcePalms= new[]{new BandPalm(animator,HumanBodyBones.LeftHand),new BandPalm(animator,HumanBodyBones.RightHand)};
+                    var targetPalms= new[]{new BandPalm(target,HumanBodyBones.LeftHand),new BandPalm(target,HumanBodyBones.RightHand)};
+                    void CheckProp(string name, BandPalm palm)
+                    {
+                        var prop=skin.GetComponentsInChildren<Transform>().SingleOrDefault(t=>t.name==name);
+                        if(prop==null||Vector3.Distance(prop.position,palm.Position)>0.001f||!prop.GetComponentsInChildren<MeshRenderer>().Any(r=>r.enabled))
+                            throw new InvalidOperationException($"Missing or floating prop: {actor.Type} {name}");
+                    }
+                    if(actor.Type==VenueCharacter.CharacterType.Drums)
+                    {CheckProp("Band drumstick left",targetPalms[0]);CheckProp("Band drumstick right",targetPalms[1]);}
+                    if(actor.Type==VenueCharacter.CharacterType.Vocals)CheckProp("Band microphone",targetPalms[1]);
                     using var sourceRead=new HumanPoseHandler(animator.avatar,animator.transform);
                     using var targetRead=new HumanPoseHandler(target.avatar,target.transform);
                     var sourcePose=new HumanPose();var targetPose=new HumanPose();
@@ -115,7 +148,7 @@ namespace Editor
                         for(int arm=0;arm<chains.Length;arm++)
                         {
                             var chain=chains[arm];var shoulder=target.GetBoneTransform(chain[0]).position;
-                            var goal=animator.GetBoneTransform(chain[2]).position;
+                            var goal=sourcePalms[arm].Position-targetPalms[arm].Hand.TransformVector(targetPalms[arm].LocalOffset);
                             float reach=lengths[arm][0]+lengths[arm][1];
                             float unavoidable=Mathf.Max(0,Vector3.Distance(shoulder,goal)-reach);
                             float error=Vector3.Distance(target.GetBoneTransform(chain[2]).position,goal);
@@ -126,6 +159,9 @@ namespace Editor
                         Debug.Log($"BAND_ANCHOR_METRIC {actor.Type} offset={offset} hips={hips:F5} left={left:F5} right={right:F5} drift={drift:F5} rotation={rotationError:F3}");
                     }
                     Object.DestroyImmediate(before); Object.DestroyImmediate(after);
+                    follower.RestoreActor();
+                    Object.DestroyImmediate(skin);
+                    if(animator.applyRootMotion!=rootMotion)throw new InvalidOperationException("Root motion was not restored");
                     count++;
                 }
                 if (count < 4) throw new InvalidOperationException("Expected full band");

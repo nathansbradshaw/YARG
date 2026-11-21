@@ -18,6 +18,9 @@ namespace YARG.Venue.Characters
         private HumanPose _pose, _targetPoseSample;
         private Transform _sourceHips, _targetHips;
         private ArmGrip[] _grips;
+        private Animator _sourceAnimator;
+        private bool _originalRootMotion;
+        private BandHandProps _handProps;
         private readonly List<Renderer> _hidden = new();
         public static string Folder => Path.Combine(CustomContentManager.CustomizationDirectory, "characters", "band");
 
@@ -88,6 +91,9 @@ namespace YARG.Venue.Characters
             var follower = body.AddComponent<BandCharacterSkin>();
             try
             {
+                follower._sourceAnimator=source;
+                follower._originalRootMotion=source.applyRootMotion;
+                source.applyRootMotion=false;
                 follower._sourceHips=source.GetBoneTransform(HumanBodyBones.Hips);
                 follower._targetHips=target.GetBoneTransform(HumanBodyBones.Hips);
                 follower._grips=new[]
@@ -97,6 +103,7 @@ namespace YARG.Venue.Characters
                 };
                 follower._sourcePose = new HumanPoseHandler(source.avatar, source.transform);
                 follower._targetPose = new HumanPoseHandler(target.avatar, target.transform);
+                follower._handProps=new BandHandProps(source,target,body.transform,follower._hidden);
                 follower.CopyPose();
                 foreach (var renderer in source.GetComponentsInChildren<SkinnedMeshRenderer>(true))
                 {
@@ -125,31 +132,45 @@ namespace YARG.Venue.Characters
             // a second root translation through the parented skin.
             transform.position+=_sourceHips.position-_targetHips.position;
             foreach(var grip in _grips)grip.Solve();
+            _handProps?.Update();
         }
 
         private sealed class ArmGrip
         {
-            private readonly Transform _sourceHand,_upper,_lower,_hand;
+            private readonly Transform _sourceHand,_sourceUpper,_sourceLower,_upper,_lower,_hand;
+            private readonly BandPalm _sourcePalm,_targetPalm;
             private Vector3 _lastBend;
             public ArmGrip(Animator source,Animator target,HumanBodyBones upper,HumanBodyBones lower,HumanBodyBones hand)
             {
                 _sourceHand=source.GetBoneTransform(hand);
+                _sourceUpper=source.GetBoneTransform(upper);_sourceLower=source.GetBoneTransform(lower);
                 _upper=target.GetBoneTransform(upper);_lower=target.GetBoneTransform(lower);_hand=target.GetBoneTransform(hand);
+                _sourcePalm=new BandPalm(source,hand);_targetPalm=new BandPalm(target,hand);
             }
             public void Solve()
             {
                 if(_sourceHand==null||_upper==null||_lower==null||_hand==null)return;
                 var shoulder=_upper.position;
                 float a=Vector3.Distance(shoulder,_lower.position),b=Vector3.Distance(_lower.position,_hand.position);
-                var delta=_sourceHand.position-shoulder;
+                var delta=_sourcePalm.Position-_hand.TransformVector(_targetPalm.LocalOffset)-shoulder;
                 if(a<0.0001f||b<0.0001f||delta.sqrMagnitude<0.00000001f)return;
                 var direction=delta.normalized;
                 float distance=Mathf.Clamp(delta.magnitude,Mathf.Abs(a-b)+0.0001f,a+b-0.0001f);
-                var bend=Vector3.ProjectOnPlane(_lower.position-shoulder,direction);
-                if(bend.sqrMagnitude<0.000001f)bend=Vector3.ProjectOnPlane(_lastBend,direction);
+                var nativeAxis=_sourceHand.position-_sourceUpper.position;
+                var nativeBend=Vector3.ProjectOnPlane(_sourceLower.position-_sourceUpper.position,nativeAxis);
+                var bend=Vector3.ProjectOnPlane(nativeBend,direction);
+                // A nearly straight authored arm has no reliable elbow pole.
+                // Carry the last plane through that singularity instead of flipping it.
+                if(bend.sqrMagnitude<0.0001f)bend=Vector3.ProjectOnPlane(_lastBend,direction);
                 if(bend.sqrMagnitude<0.000001f)bend=Vector3.Cross(direction,Vector3.up);
                 if(bend.sqrMagnitude<0.000001f)bend=Vector3.Cross(direction,Vector3.right);
-                bend.Normalize();_lastBend=bend;
+                bend.Normalize();
+                if(Application.isPlaying&&_lastBend.sqrMagnitude>0.5f)
+                {
+                    var continuous=Vector3.ProjectOnPlane(Vector3.RotateTowards(_lastBend,bend,12f*Mathf.Min(Time.deltaTime,0.05f),0),direction);
+                    if(continuous.sqrMagnitude>0.000001f)bend=continuous.normalized;
+                }
+                _lastBend=bend;
                 float along=(a*a-b*b+distance*distance)/(2f*distance);
                 var elbow=shoulder+direction*along+bend*Mathf.Sqrt(Mathf.Max(0,a*a-along*along));
                 var wristRotation=_hand.rotation;
@@ -159,11 +180,18 @@ namespace YARG.Venue.Characters
             }
         }
         private void LateUpdate() => CopyPose();
-        private void OnDestroy()
+        public void RestoreActor()
         {
             _sourcePose?.Dispose();
             _targetPose?.Dispose();
+            _sourcePose=null;_targetPose=null;
+            _handProps?.Dispose();
+            _handProps=null;
+            if(_sourceAnimator!=null)_sourceAnimator.applyRootMotion=_originalRootMotion;
+            _sourceAnimator=null;
             foreach (var renderer in _hidden) if (renderer != null) renderer.enabled = true;
+            _hidden.Clear();
         }
+        private void OnDestroy() => RestoreActor();
     }
 }
