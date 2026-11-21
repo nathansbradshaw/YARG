@@ -15,7 +15,9 @@ namespace YARG.Venue.Characters
     public sealed class BandCharacterSkin : MonoBehaviour
     {
         private HumanPoseHandler _sourcePose, _targetPose;
-        private HumanPose _pose;
+        private HumanPose _pose, _targetPoseSample;
+        private Transform _sourceHips, _targetHips;
+        private ArmGrip[] _grips;
         private readonly List<Renderer> _hidden = new();
         public static string Folder => Path.Combine(CustomContentManager.CustomizationDirectory, "characters", "band");
 
@@ -86,6 +88,13 @@ namespace YARG.Venue.Characters
             var follower = body.AddComponent<BandCharacterSkin>();
             try
             {
+                follower._sourceHips=source.GetBoneTransform(HumanBodyBones.Hips);
+                follower._targetHips=target.GetBoneTransform(HumanBodyBones.Hips);
+                follower._grips=new[]
+                {
+                    new ArmGrip(source,target,HumanBodyBones.LeftUpperArm,HumanBodyBones.LeftLowerArm,HumanBodyBones.LeftHand),
+                    new ArmGrip(source,target,HumanBodyBones.RightUpperArm,HumanBodyBones.RightLowerArm,HumanBodyBones.RightHand)
+                };
                 follower._sourcePose = new HumanPoseHandler(source.avatar, source.transform);
                 follower._targetPose = new HumanPoseHandler(target.avatar, target.transform);
                 follower.CopyPose();
@@ -105,8 +114,49 @@ namespace YARG.Venue.Characters
 
         public void CopyPose()
         {
+            transform.localPosition=Vector3.zero;
+            transform.localRotation=Quaternion.identity;
             _sourcePose.GetHumanPose(ref _pose);
             _targetPose.SetHumanPose(ref _pose);
+            _targetPose.GetHumanPose(ref _targetPoseSample);
+            transform.rotation=(_pose.bodyRotation*Quaternion.Inverse(_targetPoseSample.bodyRotation))*transform.rotation;
+            // Muscle-space body motion uses avatar scale, which need not match leg fit.
+            // Anchor the imported pelvis to the authored actor instead of accumulating
+            // a second root translation through the parented skin.
+            transform.position+=_sourceHips.position-_targetHips.position;
+            foreach(var grip in _grips)grip.Solve();
+        }
+
+        private sealed class ArmGrip
+        {
+            private readonly Transform _sourceHand,_upper,_lower,_hand;
+            private Vector3 _lastBend;
+            public ArmGrip(Animator source,Animator target,HumanBodyBones upper,HumanBodyBones lower,HumanBodyBones hand)
+            {
+                _sourceHand=source.GetBoneTransform(hand);
+                _upper=target.GetBoneTransform(upper);_lower=target.GetBoneTransform(lower);_hand=target.GetBoneTransform(hand);
+            }
+            public void Solve()
+            {
+                if(_sourceHand==null||_upper==null||_lower==null||_hand==null)return;
+                var shoulder=_upper.position;
+                float a=Vector3.Distance(shoulder,_lower.position),b=Vector3.Distance(_lower.position,_hand.position);
+                var delta=_sourceHand.position-shoulder;
+                if(a<0.0001f||b<0.0001f||delta.sqrMagnitude<0.00000001f)return;
+                var direction=delta.normalized;
+                float distance=Mathf.Clamp(delta.magnitude,Mathf.Abs(a-b)+0.0001f,a+b-0.0001f);
+                var bend=Vector3.ProjectOnPlane(_lower.position-shoulder,direction);
+                if(bend.sqrMagnitude<0.000001f)bend=Vector3.ProjectOnPlane(_lastBend,direction);
+                if(bend.sqrMagnitude<0.000001f)bend=Vector3.Cross(direction,Vector3.up);
+                if(bend.sqrMagnitude<0.000001f)bend=Vector3.Cross(direction,Vector3.right);
+                bend.Normalize();_lastBend=bend;
+                float along=(a*a-b*b+distance*distance)/(2f*distance);
+                var elbow=shoulder+direction*along+bend*Mathf.Sqrt(Mathf.Max(0,a*a-along*along));
+                var wristRotation=_hand.rotation;
+                _upper.rotation=Quaternion.FromToRotation(_lower.position-shoulder,elbow-shoulder)*_upper.rotation;
+                _lower.rotation=Quaternion.FromToRotation(_hand.position-_lower.position,shoulder+direction*distance-_lower.position)*_lower.rotation;
+                _hand.rotation=wristRotation;
+            }
         }
         private void LateUpdate() => CopyPose();
         private void OnDestroy()

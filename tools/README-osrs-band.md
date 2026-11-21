@@ -8,9 +8,11 @@ roles on each song; with fewer models than roles, models repeat within the band.
 A selected Custom Vocals Character keeps priority for the singer.
 
 The authored band stays in charge of chart notes, tempo, rests, instrument props,
-IK, cameras and animations. Imported bodies copy its humanoid pose after animation.
-This does not rig arbitrary meshes. Hands depend on model proportions; finger and
-facial animation need the corresponding rig data. Native instrument meshes must
+IK, cameras and animations. Imported bodies copy its humanoid pose after animation,
+align their pelvis and body orientation, then solve their arms toward the authored
+wrists. Arm lengths stay fixed; unreachable targets stop at natural reach. Finger
+and facial animation need the corresponding rig data. This does not rig arbitrary
+meshes. Native instrument meshes must
 be MeshRenderers: the adapter hides the original SkinnedMeshRenderers.
 
 For Hans, Cook and Father Aereck using an existing skeleton and original skin
@@ -48,4 +50,7 @@ Unity -batchmode -quit -projectPath "$PWD" \
 
 `BAND_SKIN_PASS` requires four roles, skin deformation, reasonable world bounds,
 unchanged authored controllers, active chart actors and retained instrument props.
+It also checks pelvis alignment during turns/translations, repeated-pose stability,
+reachable wrist targets and unchanged arm lengths. The three OSRS NPCs have a
+separate waist stretch/seam regression check under a strong torso bend.
 Live playback is still required to judge appearance and instrument grips.

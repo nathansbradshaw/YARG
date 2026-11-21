@@ -39,7 +39,9 @@ Unity -batchmode -quit -projectPath "$PWD" \
 The editor normalizes FBX scale without moving the authored rest pose, preserves
 the original mesh groups and skeleton, calibrates a Unity Humanoid avatar, and
 exports native Mac `.yargchar` bundles into each NPC's `existing-rig` folder.
-The supplied rig's two loose apron controls are parented to existing waist bones.
+The supplied rig's loose apron and robe controls follow existing waist/leg bones.
+Waist and lower garment weights are adapted across the existing hips, spine and
+chest to distribute torso bending; arms and legs retain their source weights.
 Generated editable Unity assets remain in the ignored `Assets/LocalCharacterBuild`.
 
 Copy the bundles into `custom/characters/band` in the fork's data folder and enable
@@ -59,4 +61,7 @@ forward, matching the authored venue's humanoid pose. This guards against the
 reversed left/right mapping that initially bent the imported arms backward.
 `BAND_SKIN_PASS` proves pose transfer and retained controllers/props; it does not
 prove natural elbows, hand grips or visual quality. Check live playback as well.
+`Editor.BandSkinChecks.RunCast` checks the three exported bundles together when
+`YARG_NPC_ROOT` and `YARG_BAND_VENUE` are set. It exercises turns, translations,
+reachable wrist targets, fixed arm lengths and repeated copies without drift.
 The original NPC groups have no finger or facial animation data.

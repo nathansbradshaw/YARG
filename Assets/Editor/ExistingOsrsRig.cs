@@ -68,7 +68,15 @@ namespace Editor
                 // and make the apron follow the existing waist during humanoid playback.
                 bones["Bone_6"].SetParent(bones["Stomach"],true);
                 bones["Bone_7"].SetParent(bones["Spine"],true);
-                var groups=data.groups.Distinct().OrderBy(g=>g).ToArray();
+                // The source robe controls are loose siblings of the entire armature.
+                // Attach them to existing legs/hips so the robe follows the singer's steps.
+                foreach(var pair in new Dictionary<string,string>
+                {
+                    ["Bone_76"]="Leg_L.003",["Bone_77"]="Leg_R.003",["Bone_79"]="Spine",
+                    ["Bone_80"]="Waist_R",["Bone_81"]="Waist_L",["Bone_82"]="Leg_L",["Bone_83"]="Leg_R",
+                    ["Bone_84"]="Spine",["Bone_85"]="Spine"
+                })bones[pair.Key].SetParent(bones[pair.Value],true);
+                var groups=data.groups.Concat(new[]{39,4,8}).Distinct().OrderBy(g=>g).ToArray();
                 var indices=groups.Select((g,i)=>(g,i)).ToDictionary(x=>x.g,x=>x.i);
                 string BoneName(int group)=>group==6||group==7?$"Bone_{group}":group<GroupNames.Length?GroupNames[group]:$"Bone_{group:00}";
                 var skinBones=groups.Select(g=>bones.TryGetValue(BoneName(g),out var bone)?bone:throw new InvalidDataException("Existing rig lacks group "+g+" "+BoneName(g))).ToArray();
@@ -76,7 +84,25 @@ namespace Editor
                 mesh.vertices=data.positions.Select(v=>new Vector3(v[0],v[1],v[2])).ToArray();
                 mesh.uv=data.uvs.Select(v=>new Vector2(v[0],v[1])).ToArray();
                 mesh.triangles=Enumerable.Range(0,data.positions.Length).ToArray();
-                mesh.boneWeights=data.groups.Select(g=>new BoneWeight{boneIndex0=indices[g],weight0=1f}).ToArray();
+                mesh.boneWeights=data.groups.Select((g,i)=>
+                {
+                    var weight=new BoneWeight{boneIndex0=indices[g],weight0=1f};
+                    // The original rigid belt/stomach seam stretches under Unity torso
+                    // curves. Blend only this torso band across existing anatomical joints.
+                    if((g>=17&&g<=28)||(g>=31&&g<=38)||g==40||g==42||(g>=45&&g<=48))return weight;
+                    float y=data.positions[i][1];
+                    float bottom=bones["Spine1"].position.y;
+                    if(g>=76&&g<=85&&y<bottom)return weight;
+                    if(g==0&&y<bottom)
+                        return new BoneWeight{boneIndex0=indices[data.positions[i][0]<0?47:48],weight0=1f};
+                    float top=(bones["Arm_L.003"].position.y+bones["Arm_R.003"].position.y)*0.5f;
+                    float middle=(bottom+top)*0.5f;
+                    if(y>=top&&g!=4&&g!=5&&g!=6&&g!=7&&g!=8&&g!=29&&g!=30&&g!=39&&g!=41)return weight;
+                    int lower=y<middle?39:4,upper=lower==39?4:8;
+                    if(!indices.ContainsKey(lower)||!indices.ContainsKey(upper))return weight;
+                    float t=Mathf.InverseLerp(lower==39?bottom:middle,lower==39?middle:top,y);
+                    return new BoneWeight{boneIndex0=indices[lower],boneIndex1=indices[upper],weight0=1-t,weight1=t};
+                }).ToArray();
                 mesh.bindposes=skinBones.Select(t=>t.worldToLocalMatrix*root.transform.localToWorldMatrix).ToArray();
                 mesh.RecalculateNormals();mesh.RecalculateBounds();
                 Save(mesh,folder+"/body.asset");
@@ -119,7 +145,7 @@ namespace Editor
                 if(manifest==null)throw new InvalidOperationException("Existing rig bundle export failed");
                 Environment.SetEnvironmentVariable("YARG_BAND_MODEL",Path.Combine(output,bundleName));
                 BandSkinChecks.Run();
-                Debug.Log($"EXISTING_OSRS_RIG_PASS {name}: valid humanoid; {skinBones.Length} original weighted bones; unchanged original groups; four band roles");
+                Debug.Log($"EXISTING_OSRS_RIG_PASS {name}: valid humanoid; {skinBones.Length} original weighted bones; original groups with waist blend; four band roles");
             }
             finally {UnityEngine.Object.DestroyImmediate(root);if(temporary!=null)UnityEngine.Object.DestroyImmediate(temporary);}
         }
