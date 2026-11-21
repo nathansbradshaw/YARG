@@ -34,8 +34,12 @@ namespace Editor
         {
             var source=Environment.GetEnvironmentVariable("YARG_NPC_ROOT");
             if (string.IsNullOrEmpty(source)) throw new ArgumentException("Set YARG_NPC_ROOT to the local extracted NPC folder");
-            foreach (var name in new[]{"Hans-3105","Cook-4626","Father_Aereck-2812"}) BuildOne(source,name);
+            foreach (var name in CharacterNames) BuildOne(source,name);
         }
+
+        public static string[] CharacterNames =>
+            (Environment.GetEnvironmentVariable("YARG_NPC_NAMES") ?? "Hans-3105|Cook-4626|Father_Aereck-2812")
+            .Split('|', StringSplitOptions.RemoveEmptyEntries);
 
         private static void BuildOne(string source,string name)
         {
@@ -78,7 +82,14 @@ namespace Editor
                 })bones[pair.Key].SetParent(bones[pair.Value],true);
                 var groups=data.groups.Concat(new[]{39,4,8}).Distinct().OrderBy(g=>g).ToArray();
                 var indices=groups.Select((g,i)=>(g,i)).ToDictionary(x=>x.g,x=>x.i);
-                string BoneName(int group)=>group==6||group==7?$"Bone_{group}":group<GroupNames.Length?GroupNames[group]:$"Bone_{group:00}";
+                // These mesh-region labels have anatomical equivalents in the supplied rig.
+                string BoneName(int group)=>group switch
+                {
+                    9=>HumanMap[HumanBodyBones.Neck],10=>HumanMap[HumanBodyBones.Chest],
+                    11=>HumanMap[HumanBodyBones.Spine],12=>HumanMap[HumanBodyBones.Hips],
+                    6 or 7=>$"Bone_{group}",
+                    _=>group<GroupNames.Length?GroupNames[group]:$"Bone_{group:00}"
+                };
                 var skinBones=groups.Select(g=>bones.TryGetValue(BoneName(g),out var bone)?bone:throw new InvalidDataException("Existing rig lacks group "+g+" "+BoneName(g))).ToArray();
                 var mesh=new Mesh{name=name+" original groups"};
                 mesh.vertices=data.positions.Select(v=>new Vector3(v[0],v[1],v[2])).ToArray();
