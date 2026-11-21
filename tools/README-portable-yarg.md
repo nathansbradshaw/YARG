@@ -26,6 +26,9 @@ Regression check: `rustc --edition 2021 --test tools/portable-yarg.rs -o /tmp/po
 then `/tmp/portable-yarg-tests`. The installed app's executable accepts
 `--portable-check` to print resolved locations without launching Unity.
 
-Current installation passed path resolution, copied-file comparison and deep
-signature verification. Live launch remains unverified because the computer-control
-service failed twice before producing a window or a portable player log.
+The updated installation passed path resolution, checksum comparison and deep
+strict signature verification. All 28 checked settings/profile/score files were
+unchanged by installation. Live process arguments and the drive-local log confirmed
+playback from the removable drive in Festival and Backyard Bash; the expanded
+band loaded and the user confirmed Sandwich Lady's baguette microphone follows
+her hand. The obsolete local test app was moved to Trash.

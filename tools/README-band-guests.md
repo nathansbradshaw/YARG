@@ -64,7 +64,13 @@ and vocals-only visibility checks. Her source model has no facial rig for lip sy
 
 Guard 3010 was rejected after its authored equipment/arm pose distorted under this
 rig. The unrigged Sonic Adventure candidate was also rejected. Neither is installed.
-Live playback with the new cast is pending because computer control is unavailable.
+The updated portable Mac player loaded Tails, Cook, Father Aereck and Sora in
+Festival on “Quevedo: Bzrp Music Sessions, Vol. 52”. A controlled one-song cast
+then loaded Sandwich Lady in all four roles in Backyard Bash on “Hardware Store”.
+The user confirmed her baguette replaces the microphone and stays in her hand
+while she moves. The complete 17-character shuffle was restored immediately,
+with all bundle hashes unchanged. Other new guests still need individual live
+visual acceptance; editor checks alone do not establish their appearance.
 Multi-game crowds are not implemented; the venue crowd controller needs separate
 placement and animation integration.
 
