@@ -13,7 +13,10 @@ This does not rig arbitrary meshes. Hands depend on model proportions; finger an
 facial animation need the corresponding rig data. Native instrument meshes must
 be MeshRenderers: the adapter hides the original SkinnedMeshRenderers.
 
-## Saved OSRS player
+For Hans, Cook and Father Aereck using an existing skeleton and original skin
+groups, use the [existing OSRS rig workflow](README-existing-osrs-rig.md).
+
+## Saved OSRS player prototype
 
 The converter contains a hand-authored skinning recipe for the saved armoured
 player's XPS ASCII mesh. It removes the bow, makes a T-pose and writes an editable

@@ -153,7 +153,7 @@ namespace Editor
             Debug.Log($"OSRS_SKIN_CHECK: {moved} vertices moved with elbow");
         }
 
-        private static void Render(GameObject root, string output)
+        internal static void Render(GameObject root, string output)
         {
             var cameraRoot = new GameObject("Rig preview camera");
             var lightRoot = new GameObject("Rig preview light");
