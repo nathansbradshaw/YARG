@@ -34,10 +34,17 @@ namespace Editor
             }
         }
         public static void BuildAndRun() { OsrsCharacterBuilder.Build(); Run(); }
+        public static void RunModels()
+        {
+            foreach(var path in Environment.GetEnvironmentVariable("YARG_BAND_MODELS").Split('|',StringSplitOptions.RemoveEmptyEntries))
+            {
+                Environment.SetEnvironmentVariable("YARG_BAND_MODEL",path);Run();
+            }
+        }
         public static void RunCast()
         {
             var root=Environment.GetEnvironmentVariable("YARG_NPC_ROOT");
-            foreach(var npc in new[]{"Hans-3105","Cook-4626","Father_Aereck-2812"})
+            foreach(var npc in ExistingOsrsRig.CharacterNames)
             {
                 Environment.SetEnvironmentVariable("YARG_BAND_MODEL",Path.Combine(root,npc,"existing-rig",npc.ToLowerInvariant()+".yargchar"));
                 Run();
@@ -66,6 +73,18 @@ namespace Editor
                     bool rootMotion = animator.applyRootMotion;
                     var skin = Object.Instantiate(model, actor.transform);
                     var follower = BandCharacterSkin.Attach(animator, skin);
+                    var previews=Environment.GetEnvironmentVariable("YARG_BAND_PREVIEWS");
+                    if(!string.IsNullOrEmpty(previews))
+                    {
+                        Directory.CreateDirectory(previews);
+                        var position=actor.transform.position;var rotation=actor.transform.rotation;var scale=actor.transform.localScale;
+                        try
+                        {
+                            actor.transform.SetPositionAndRotation(Vector3.zero,Quaternion.identity);actor.transform.localScale=scale*0.75f;follower.CopyPose();
+                            OsrsCharacterBuilder.Render(actor.gameObject,Path.Combine(previews,model.name+"-"+actor.Type+".png"));
+                        }
+                        finally{actor.transform.SetPositionAndRotation(position,rotation);actor.transform.localScale=scale;follower.CopyPose();}
+                    }
                     var renderer = skin.GetComponentInChildren<SkinnedMeshRenderer>();
                     var before = new Mesh(); var after = new Mesh();
                     renderer.BakeMesh(before);
@@ -128,7 +147,7 @@ namespace Editor
                         if(stretch>worst){worst=stretch;edge=$"{renderer.bones[weights[a].boneIndex0].name}/{renderer.bones[weights[b].boneIndex0].name}";}
                     }
                     Debug.Log($"BAND_WAIST_STRETCH {actor.Type} max={worst:F3} bones={edge}");
-                    if((model.name=="Hans-3105"||model.name=="Cook-4626"||model.name=="Father_Aereck-2812") &&
+                    if((Environment.GetEnvironmentVariable("YARG_OSRS_WAIST_CHECK")=="1"||model.name=="Hans-3105"||model.name=="Cook-4626"||model.name=="Father_Aereck-2812") &&
                         (worst>1.6f||seamGap>0.004f))
                         throw new InvalidOperationException($"OSRS waist deformation regressed for {model.name}: stretch={worst}, seam={seamGap}");
                     foreach(var offset in new[]{Vector3.zero,new Vector3(0.7f,0.2f,-0.3f)})
