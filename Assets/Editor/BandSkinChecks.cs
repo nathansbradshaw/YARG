@@ -119,6 +119,22 @@ namespace Editor
                     if(actor.Type==VenueCharacter.CharacterType.Drums)
                     {CheckProp("Band drumstick left",targetPalms[0]);CheckProp("Band drumstick right",targetPalms[1]);}
                     if(actor.Type==VenueCharacter.CharacterType.Vocals)CheckProp("Band microphone",targetPalms[1]);
+                    var vocalTemplate=skin.transform.Find("Vocal microphone template");
+                    if(vocalTemplate!=null)
+                    {
+                        var custom=skin.GetComponentsInChildren<Transform>().SingleOrDefault(t=>t.name=="Character vocal prop");
+                        if(vocalTemplate.gameObject.activeSelf||((custom!=null)!=(actor.Type==VenueCharacter.CharacterType.Vocals)))
+                            throw new InvalidOperationException("Character vocal prop appeared in the wrong band role");
+                        if(custom!=null)
+                        {
+                            if(custom.GetComponent<MeshFilter>().sharedMesh!=vocalTemplate.GetComponent<MeshFilter>().sharedMesh||
+                                custom.GetComponent<MeshRenderer>().sharedMaterial!=vocalTemplate.GetComponent<MeshRenderer>().sharedMaterial||
+                                custom.gameObject.layer!=LayerMask.NameToLayer("Venue")||
+                                Vector3.Dot(custom.up,(target.GetBoneTransform(HumanBodyBones.Head).position-targetPalms[1].Position).normalized)<0.999f)
+                                throw new InvalidOperationException("Character vocal prop lost its mesh, material, layer or mouth aim");
+                            Debug.Log("BAND_CUSTOM_VOCAL_PROP_PASS: original mesh and palette, palm grip, mouth aim, vocals only");
+                        }
+                    }
                     using var sourceRead=new HumanPoseHandler(animator.avatar,animator.transform);
                     using var targetRead=new HumanPoseHandler(target.avatar,target.transform);
                     var sourcePose=new HumanPose();var targetPose=new HumanPose();
@@ -129,13 +145,17 @@ namespace Editor
                     };
                     float Segment(HumanBodyBones a,HumanBodyBones b)=>Vector3.Distance(target.GetBoneTransform(a).position,target.GetBoneTransform(b).position);
                     var lengths=chains.Select(c=>new[]{Segment(c[0],c[1]),Segment(c[1],c[2])}).ToArray();
-                    float seamGap=0;
+                    float seamGap=0;string seamDetail="";
                     var waist=renderer.sharedMesh.vertices.Select((v,i)=>(v,i)).Where(p=>p.v.y>0.95f&&p.v.y<1.3f).GroupBy(p=>p.v);
                     var posedVertices=after.vertices;
                     foreach(var seam in waist)
-                        foreach(var vertex in seam)seamGap=Mathf.Max(seamGap,Vector3.Distance(posedVertices[seam.First().i],posedVertices[vertex.i]));
-                    Debug.Log($"BAND_WAIST_SEAM {actor.Type} gap={seamGap:F5}");
-                    float worst=1;string edge="";
+                        foreach(var vertex in seam)
+                        {
+                            float gap=Vector3.Distance(posedVertices[seam.First().i],posedVertices[vertex.i]);
+                            if(gap>seamGap){seamGap=gap;var ws=renderer.sharedMesh.boneWeights;seamDetail=$"at {seam.Key}: {renderer.bones[ws[seam.First().i].boneIndex0].name}/{renderer.bones[ws[vertex.i].boneIndex0].name}";}
+                        }
+                    Debug.Log($"BAND_WAIST_SEAM {actor.Type} gap={seamGap:F5} {seamDetail}");
+                    float worst=1,beforeWorst=1;string edge="";
                     var bind=renderer.sharedMesh.vertices;var triangles=renderer.sharedMesh.triangles;var weights=renderer.sharedMesh.boneWeights;
                     for(int triangle=0;triangle<triangles.Length;triangle+=3)
                     for(int corner=0;corner<3;corner++)
@@ -144,9 +164,10 @@ namespace Editor
                         if(bind[a].y<0.98f||bind[a].y>1.3f||bind[b].y<0.98f||bind[b].y>1.3f)continue;
                         float rest=Vector3.Distance(bind[a],bind[b]);if(rest<0.015f)continue;
                         float stretch=Vector3.Distance(posedVertices[a],posedVertices[b])/rest;
+                        beforeWorst=Mathf.Max(beforeWorst,Vector3.Distance(before.vertices[a],before.vertices[b])/rest);
                         if(stretch>worst){worst=stretch;edge=$"{renderer.bones[weights[a].boneIndex0].name}/{renderer.bones[weights[b].boneIndex0].name}";}
                     }
-                    Debug.Log($"BAND_WAIST_STRETCH {actor.Type} max={worst:F3} bones={edge}");
+                    Debug.Log($"BAND_WAIST_STRETCH {actor.Type} max={worst:F3} before={beforeWorst:F3} bones={edge}");
                     if((Environment.GetEnvironmentVariable("YARG_OSRS_WAIST_CHECK")=="1"||model.name=="Hans-3105"||model.name=="Cook-4626"||model.name=="Father_Aereck-2812") &&
                         (worst>1.6f||seamGap>0.004f))
                         throw new InvalidOperationException($"OSRS waist deformation regressed for {model.name}: stretch={worst}, seam={seamGap}");

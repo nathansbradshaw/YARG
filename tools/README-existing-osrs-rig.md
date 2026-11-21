@@ -1,6 +1,6 @@
 # Existing OSRS skeleton → YARG band
 
-This local workflow reuses the male skeleton from
+This local workflow reuses the existing male and female skeletons from
 [Psyda's OSRS Blender Character Creator](https://github.com/Psyda/OSRS-Blender-CharacterCreator)
 and the NPC mesh's original vertex groups. It does not invent a new skinning recipe.
 The initial cast is Hans (3105), Cook (4626), and Father Aereck (2812).
@@ -43,6 +43,29 @@ The supplied rig's loose apron and robe controls follow existing waist/leg bones
 Waist and lower garment weights are adapted across the existing hips, spine and
 chest to distribute torso bending; arms and legs retain their source weights.
 Generated editable Unity assets remain in the ignored `Assets/LocalCharacterBuild`.
+
+NPC fit profiles in `tools/npc-profiles` choose the existing female armature,
+reviewed helper parents, garment blend bounds and equipment component groups.
+Optional seam welding averages weights only at coincident source vertices.
+Armour helpers are excluded from the torso blend so gauntlets at waist height
+remain attached to the arms. These are fitting corrections, not a new rig.
+
+Lookup names without writing extracted geometry:
+
+```sh
+/tmp/osrs-cache-export "$HOME/.runelite/jagexcache/oldschool/LIVE" \
+  --find 'Wise Old Man' Nieve 'Sandwich lady'
+```
+
+`YARG_OSRS_EXCLUDE_MODELS` accepts up to 16 comma-separated equipment IDs.
+The source mesh JSON records each retained component's vertex range; omissions
+are recorded separately in `EXCLUDED-MODELS.txt`. The reviewed band omissions are
+Nieve's cape/shield/spear (9640,11048,27654), Vannaka's shield/sword (565,546),
+and Sandwich Lady's held baguette (10745). For Sandwich Lady, also extract the
+complete NPC to a separate source folder and copy its `source-mesh.json` to
+the body folder as `vocal-prop.json`. Her profile selects component 10745 for
+the separate hidden vocal-prop template. The player instantiates it only for
+vocals, positions its grip at the right palm and aims it toward the head.
 
 Copy the bundles into `custom/characters/band` in the fork's data folder and enable
 **Shuffle Custom Band**. The existing authored actors continue to drive notes,

@@ -89,6 +89,20 @@ namespace YARG.Venue.Characters
             }
             if (actor.Type != VenueCharacter.CharacterType.Vocals) return;
             _mic = Root("Band microphone", owner);
+            // A character may supply a microphone-shaped prop in its bundle.
+            // The template stays hidden for instrument roles and is instantiated
+            // only for vocals, so food or other props cannot obstruct a guitar.
+            var template=owner.Find("Vocal microphone template");
+            if(template!=null)
+            {
+                foreach(var native in source.GetComponentsInChildren<MeshRenderer>(true))
+                    if(!native.transform.IsChildOf(owner)&&native.enabled&&native.name.ToLowerInvariant().Contains("microphone"))
+                    {native.enabled=false;hidden.Add(native);}
+                var prop=Object.Instantiate(template.gameObject,_mic,false);
+                prop.name="Character vocal prop";prop.SetActive(true);
+                YARG.Core.Logging.YargLogger.LogFormatDebug("Using custom vocal prop for {0}",owner.name);
+                return;
+            }
             foreach (var r in source.GetComponentsInChildren<MeshRenderer>(true))
             {
                 if (r.transform.IsChildOf(owner) || !r.name.ToLowerInvariant().Contains("microphone")) continue;

@@ -1,0 +1,28 @@
+{
+  "model": "Cloud.fbx",
+  "scale": 1,
+  "texture": "Cloud.png",
+  "tpose": true,
+  "bones": {
+    "Hips": "n_hara",
+    "Spine": "j_sebo",
+    "Head": "j_kao",
+    "LeftShoulder": "j_sako_l",
+    "LeftUpperArm": "j_ude_a_l",
+    "LeftLowerArm": "j_ude_b_l",
+    "LeftHand": "j_te_l",
+    "RightShoulder": "j_sako_r",
+    "RightUpperArm": "j_ude_a_r",
+    "RightLowerArm": "j_ude_b_r",
+    "RightHand": "j_te_r",
+    "LeftUpperLeg": "j_asi_a_l",
+    "LeftLowerLeg": "j_asi_b_l",
+    "LeftFoot": "j_asi_c_l",
+    "RightUpperLeg": "j_asi_a_r",
+    "RightLowerLeg": "j_asi_b_r",
+    "RightFoot": "j_asi_c_r"
+  },
+  "excludeWeightedBones": [
+    "n_buki_r"
+  ]
+}
