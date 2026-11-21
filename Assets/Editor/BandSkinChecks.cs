@@ -41,6 +41,12 @@ namespace Editor
                 Environment.SetEnvironmentVariable("YARG_BAND_MODEL",path);Run();
             }
         }
+        public static void RunVenues()
+        {
+            CheckRules();
+            foreach(var path in Environment.GetEnvironmentVariable("YARG_BAND_VENUES").Split('|',StringSplitOptions.RemoveEmptyEntries))
+            {Environment.SetEnvironmentVariable("YARG_BAND_VENUE",path);RunModels();}
+        }
         public static void RunCast()
         {
             var root=Environment.GetEnvironmentVariable("YARG_NPC_ROOT");
@@ -64,6 +70,7 @@ namespace Editor
 
                 var actors = stage.GetComponentsInChildren<VenueCharacter>();
                 int count = 0;
+                int expected=actors.Count(a=>a.GetComponent<Animator>()?.isHuman==true&&BandCharacterSkin.CanPlay(model,a.Type));
                 foreach (var actor in actors)
                 {
                     var animator = actor.GetComponent<Animator>();
@@ -72,6 +79,14 @@ namespace Editor
                     var controller = animator.runtimeAnimatorController;
                     bool rootMotion = animator.applyRootMotion;
                     var skin = Object.Instantiate(model, actor.transform);
+                    if(!BandCharacterSkin.CanPlay(model,actor.Type))
+                    {
+                        bool rejected=false;
+                        try{BandCharacterSkin.Attach(animator,skin);}catch(ArgumentException){rejected=true;}
+                        finally{Object.DestroyImmediate(skin);}
+                        if(!rejected||animator.applyRootMotion!=rootMotion)throw new InvalidOperationException("Forbidden role was not rejected safely");
+                        Debug.Log($"BAND_ROLE_REJECT_PASS {model.name}: {actor.Type}");continue;
+                    }
                     var follower = BandCharacterSkin.Attach(animator, skin);
                     var previews=Environment.GetEnvironmentVariable("YARG_BAND_PREVIEWS");
                     if(!string.IsNullOrEmpty(previews))
@@ -108,6 +123,11 @@ namespace Editor
                         throw new InvalidOperationException($"Skin transfer failed for {actor.Type}: {moved} moved, bounds={renderer.bounds}");
                     Debug.Log($"BAND_SKIN_ROLE_PASS {actor.Type}: {moved} vertices moved; authored controller, props and chart actor retained; bounds={renderer.bounds}");
                     var target=skin.GetComponent<Animator>();
+                    CheckFingers(target,actor.Type);
+                    if(actor.Type==VenueCharacter.CharacterType.Vocals)CheckMouth(target);
+                    // The standalone pose probes above do not run LateUpdate.
+                    // Reapply the live follower before checking prop/world anchors.
+                    follower.CopyPose();
                     var sourcePalms= new[]{new BandPalm(animator,HumanBodyBones.LeftHand),new BandPalm(animator,HumanBodyBones.RightHand)};
                     var targetPalms= new[]{new BandPalm(target,HumanBodyBones.LeftHand),new BandPalm(target,HumanBodyBones.RightHand)};
                     void CheckProp(string name, BandPalm palm)
@@ -168,7 +188,9 @@ namespace Editor
                         if(stretch>worst){worst=stretch;edge=$"{renderer.bones[weights[a].boneIndex0].name}/{renderer.bones[weights[b].boneIndex0].name}";}
                     }
                     Debug.Log($"BAND_WAIST_STRETCH {actor.Type} max={worst:F3} before={beforeWorst:F3} bones={edge}");
-                    if((Environment.GetEnvironmentVariable("YARG_OSRS_WAIST_CHECK")=="1"||model.name=="Hans-3105"||model.name=="Cook-4626"||model.name=="Father_Aereck-2812") &&
+                    if((Environment.GetEnvironmentVariable("YARG_OSRS_WAIST_CHECK")=="1"||
+                        (Environment.GetEnvironmentVariable("YARG_OSRS_WAIST_CHECK")=="auto"&&renderer.sharedMesh.name.EndsWith(" original groups",StringComparison.Ordinal))||
+                        model.name=="Hans-3105"||model.name=="Cook-4626"||model.name=="Father_Aereck-2812") &&
                         (worst>1.6f||seamGap>0.004f))
                         throw new InvalidOperationException($"OSRS waist deformation regressed for {model.name}: stretch={worst}, seam={seamGap}");
                     foreach(var offset in new[]{Vector3.zero,new Vector3(0.7f,0.2f,-0.3f)})
@@ -204,8 +226,10 @@ namespace Editor
                     if(animator.applyRootMotion!=rootMotion)throw new InvalidOperationException("Root motion was not restored");
                     count++;
                 }
-                if (count < 4) throw new InvalidOperationException("Expected full band");
-                Debug.Log("BAND_SKIN_PASS: four humanoid roles retargeted without replacing chart actors");
+                if(expected==0&&model.GetComponent<BandModelOptions>()?.ExtrasOnly==true)
+                {Debug.Log($"BAND_EXTRA_ONLY_PASS {model.name}: excluded from all band roles");return;}
+                if (expected==0||count!=expected) throw new InvalidOperationException("Expected every supported band role");
+                Debug.Log($"BAND_SKIN_PASS: {count} allowed humanoid roles retargeted without replacing chart actors");
             }
             finally
             {
@@ -213,6 +237,99 @@ namespace Editor
                 if (bodyBundle != null) bodyBundle.Unload(true);
                 if (venueBundle != null) venueBundle.Unload(true);
             }
+        }
+
+        private static void CheckMouth(Animator rig)
+        {
+            using var face=new BandMouthAnimation(rig);
+            if(!face.IsSupported){Debug.Log("BAND_MOUTH_UNSUPPORTED "+rig.name);return;}
+            var controls=rig.GetComponentsInChildren<Transform>().ToDictionary(t=>t,t=>t.localPosition);
+            var renderers=rig.GetComponentsInChildren<SkinnedMeshRenderer>().Where(r=>r.enabled&&r.gameObject.activeInHierarchy).ToArray();
+            var before=renderers.Select(r=>{var m=new Mesh();r.BakeMesh(m);return m;}).ToArray();
+            int moved=0;
+            try
+            {
+                face.Apply(1);
+                for(int i=0;i<renderers.Length;i++)
+                {
+                    var mesh=new Mesh();try{renderers[i].BakeMesh(mesh);moved+=before[i].vertices.Zip(mesh.vertices,(a,b)=>Vector3.Distance(a,b)).Count(d=>d>0.0001f);}
+                    finally{Object.DestroyImmediate(mesh);}
+                }
+                if(moved==0)throw new InvalidOperationException("Mouth controls did not move visible mesh vertices: "+rig.name);
+                var open=controls.Keys.ToDictionary(t=>t,t=>t.localPosition);
+                for(int frame=0;frame<120;frame++)face.Apply(1);
+                if(open.Any(p=>Vector3.Distance(p.Key.localPosition,p.Value)>0.00001f))throw new InvalidOperationException("Mouth drifted across repeated updates");
+                face.Apply(0);
+                if(controls.Any(p=>Vector3.Distance(p.Key.localPosition,p.Value)>0.00001f))throw new InvalidOperationException("Mouth did not return to its closed pose");
+                Debug.Log($"BAND_MOUTH_PASS {rig.name}: {moved} visible vertices, closed pose restored, no drift");
+            }
+            finally{foreach(var mesh in before)Object.DestroyImmediate(mesh);}
+        }
+
+        private static void CheckFingers(Animator rig,VenueCharacter.CharacterType role)
+        {
+            var grips=new BandFingerGrips(rig,role);if(grips.ControlCount==0)return;
+            using var handler=new HumanPoseHandler(rig.avatar,rig.transform);
+            var pose=new HumanPose();handler.GetHumanPose(ref pose);
+            var original=pose;original.muscles=(float[])pose.muscles.Clone();
+            var names=HumanTrait.MuscleName;
+            try
+            {
+                for(int i=0;i<names.Length;i++)if(names[i].EndsWith("Stretched",StringComparison.Ordinal)&&
+                    (names[i].Contains("Thumb")||names[i].Contains("Index")||names[i].Contains("Middle")||names[i].Contains("Ring")||names[i].Contains("Little")))pose.muscles[i]=1;
+                handler.SetHumanPose(ref pose);
+                var hands=new[]{false,true}.Where(left=>!(role==VenueCharacter.CharacterType.Vocals&&left)).ToArray();
+                float Distance(bool left)
+                {
+                    var palm=new BandPalm(rig,left?HumanBodyBones.LeftHand:HumanBodyBones.RightHand);
+                    return new[]{"Index","Middle","Ring","Little"}.Select(f=>rig.GetBoneTransform(Enum.Parse<HumanBodyBones>((left?"Left":"Right")+f+"Distal")))
+                        .Where(t=>t!=null).Select(t=>Vector3.Distance(t.position,palm.Position)).DefaultIfEmpty(0).Average();
+                }
+                var before=hands.Select(Distance).ToArray();grips.Apply(ref pose);handler.SetHumanPose(ref pose);
+                for(int hand=0;hand<hands.Length;hand++)
+                {
+                    Debug.Log($"BAND_FINGER_DISTANCE {rig.name} {role} left={hands[hand]} open={before[hand]:F5} grip={Distance(hands[hand]):F5}");
+                    if(before[hand]>0&&Distance(hands[hand])>=before[hand]-0.0005f)
+                    {
+                        foreach(float sample in new[]{-1f,-0.5f,0f,0.5f,1f})
+                        {
+                            for(int i=0;i<names.Length;i++)if(names[i].StartsWith(hands[hand]?"Left":"Right")&&names[i].EndsWith("Stretched"))pose.muscles[i]=sample;
+                            handler.SetHumanPose(ref pose);Debug.Log($"BAND_FINGER_SAMPLE {role} left={hands[hand]} curl={sample} distance={Distance(hands[hand]):F5}");
+                        }
+                        throw new InvalidOperationException($"Finger grip did not close toward the palm: {rig.name} {role} left={hands[hand]}");
+                    }
+                }
+                Debug.Log($"BAND_FINGER_GRIP_PASS {rig.name} {role}: {grips.ControlCount} muscles, fingertips closed toward held-object palms");
+            }
+            finally{handler.SetHumanPose(ref original);}
+        }
+
+        public static void CheckRules()
+        {
+            Debug.Log("BAND_FINGER_NAMES "+HumanTrait.BoneName[(int)HumanBodyBones.LeftIndexProximal]+"; "+string.Join("|",HumanTrait.MuscleName.Where(n=>n.Contains("Index")).Take(4)));
+            var singer=new GameObject("Singer only");var general=new GameObject("General band member");var extra=new GameObject("Extra only");
+            try
+            {
+                singer.AddComponent<BandModelOptions>().AllowedRoles=new[]{VenueCharacter.CharacterType.Vocals};
+                extra.AddComponent<BandModelOptions>().ExtrasOnly=true;
+                foreach(VenueCharacter.CharacterType role in Enum.GetValues(typeof(VenueCharacter.CharacterType)))
+                {
+                    var only=BandCharacterSkin.PickForRole(new[]{singer},new System.Collections.Generic.HashSet<GameObject>(),role);
+                    if((only!=null)!=(role==VenueCharacter.CharacterType.Vocals))throw new InvalidOperationException("Singer-only pool violated role restrictions");
+                    if(BandCharacterSkin.PickForRole(new[]{extra},new System.Collections.Generic.HashSet<GameObject>(),role)!=null)
+                        throw new InvalidOperationException("An extra entered the band");
+                    var used=new System.Collections.Generic.HashSet<GameObject>{general};
+                    var mixed=BandCharacterSkin.PickForRole(new[]{singer,general},used,role);
+                    if(mixed==null||!BandCharacterSkin.CanPlay(mixed,role))throw new InvalidOperationException("Casting fallback selected a forbidden role");
+                }
+                var notes=new[]{new YARG.Core.Chart.VocalNote(60,0,YARG.Core.Chart.VocalNoteType.Lyric,1,0.5,0,0),
+                    new YARG.Core.Chart.VocalNote(62,0,YARG.Core.Chart.VocalNoteType.Lyric,2,0.5,0,0)};
+                foreach(var sample in new[]{(0d,false),(1.1,true),(1.8,false),(2.1,true),(3d,false),(1.1,true),(0d,false)})
+                    if((BandMouthAnimation.AtTime(notes,sample.Item1)>0)!=sample.Item2)throw new InvalidOperationException("Vocal mouth timing failed note/rest/seek check");
+                if(BandMouthAnimation.AtTime(Array.Empty<YARG.Core.Chart.VocalNote>(),2)!=0)throw new InvalidOperationException("Missing vocals moved the mouth");
+                Debug.Log("BAND_ROLE_MOUTH_RULES_PASS: singer-only casting, compatible fallback, vocal onsets, rests and seeks");
+            }
+            finally{Object.DestroyImmediate(singer);Object.DestroyImmediate(general);Object.DestroyImmediate(extra);}
         }
     }
 }

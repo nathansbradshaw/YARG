@@ -74,6 +74,7 @@ namespace YARG.Venue.Characters
         private bool _songHasDrumAnimations;
 
         public double SongTime => GameManager.SongTime;
+        public float VocalMouthOpen => _vocalNotes==null||_vocalNotes.Count==0||GameManager==null ? 0 : BandMouthAnimation.AtTime(_vocalNotes,SongTime);
 
         protected override void OnChartLoaded(SongChart chart)
         {

@@ -18,9 +18,12 @@ namespace Editor
         {
             public string model,texture,template;
             public float scale=1;
+            public float mouthTravel=0.04f;
             public bool flipV,tpose,openEyelids;
+            public bool extrasOnly;
             public float[] rotation;
             public string[] excludeWeightedBones;
+            public string[] roles,mouthLower,mouthUpper;
             public Dictionary<string,string> bones,materials;
         }
         private static string[] Names => (Environment.GetEnvironmentVariable("YARG_GUEST_NAMES")??"Sonic|Sora").Split('|',StringSplitOptions.RemoveEmptyEntries);
@@ -146,7 +149,7 @@ namespace Editor
                 // Only the humanoid mapping and rendering materials are added here.
                 var description=new HumanDescription
                 {
-                    human=map.Select(p=>new HumanBone{humanName=p.Key.ToString(),boneName=p.Value,limit=new HumanLimit{useDefaultValues=true}}).ToArray(),
+                    human=map.Select(p=>new HumanBone{humanName=HumanTrait.BoneName[(int)p.Key],boneName=p.Value,limit=new HumanLimit{useDefaultValues=true}}).ToArray(),
                     skeleton=root.GetComponentsInChildren<Transform>().Select(t=>new SkeletonBone{name=t.name,position=t.localPosition,rotation=t.localRotation,scale=t.localScale}).ToArray(),
                     upperArmTwist=0.5f,lowerArmTwist=0.5f,upperLegTwist=0.5f,lowerLegTwist=0.5f,armStretch=0.05f,legStretch=0.05f
                 };
@@ -154,6 +157,8 @@ namespace Editor
                 if(!avatar.isValid||!avatar.isHuman)throw new InvalidDataException("Invalid humanoid: "+name);
                 Save(avatar,generated+"/humanoid.asset");
                 var animator=root.AddComponent<Animator>();animator.avatar=avatar;animator.cullingMode=AnimatorCullingMode.AlwaysAnimate;
+                foreach(var pair in map)
+                    if(animator.GetBoneTransform(pair.Key)==null)throw new InvalidDataException($"Humanoid lost mapped bone {name}: {pair.Key} ({HumanTrait.BoneName[(int)pair.Key]})");
                 var humanoid=root.AddComponent<UniHumanoid.Humanoid>();humanoid.AssignBones(map.Select(p=>(p.Key,bones[p.Value])));
                 int index=0;
                 foreach(var renderer in root.GetComponentsInChildren<SkinnedMeshRenderer>())
@@ -205,13 +210,22 @@ namespace Editor
                     if(removed==0)throw new InvalidDataException("No equipment triangles matched the explicit source bones for "+name);
                     Debug.Log($"GUEST_EQUIPMENT_OMITTED {name}: {removed} triangles; original source and body weights retained");
                 }
+                if(profile?.extrasOnly==true||profile?.roles?.Length>0||profile?.mouthLower?.Length>0||profile?.mouthUpper?.Length>0)
+                {
+                    var options=root.AddComponent<YARG.Venue.Characters.BandModelOptions>();
+                    options.AllowedRoles=(profile.roles??Array.Empty<string>()).Select(Enum.Parse<YARG.Venue.Characters.VenueCharacter.CharacterType>).ToArray();
+                    options.LowerMouth=(profile.mouthLower??Array.Empty<string>()).Select(n=>bones[n]).ToArray();
+                    options.UpperMouth=(profile.mouthUpper??Array.Empty<string>()).Select(n=>bones[n]).ToArray();
+                    options.MouthTravel=profile.mouthTravel;
+                    options.ExtrasOnly=profile.extrasOnly;
+                }
                 OsrsCharacterBuilder.Render(root,Path.Combine(output,"rest.png"));
                 string prefab=generated+"/"+name+".prefab";PrefabUtility.SaveAsPrefabAsset(root,prefab);AssetDatabase.SaveAssets();
                 string bundle=name.ToLowerInvariant()+".yargchar";
                 if(BuildPipeline.BuildAssetBundles(output,new[]{new AssetBundleBuild{assetBundleName=bundle,assetNames=new[]{prefab},addressableNames=new[]{BundleBackgroundManager.CHARACTER_PREFAB_PATH.ToLowerInvariant()}}},BuildAssetBundleOptions.ChunkBasedCompression,BuildTarget.StandaloneOSX)==null)
                     throw new InvalidDataException("Guest bundle build failed: "+name);
                 Environment.SetEnvironmentVariable("YARG_BAND_MODEL",Path.Combine(output,bundle));BandSkinChecks.Run();
-                Debug.Log("GUEST_BAND_PASS "+name);
+                Debug.Log((profile?.extrasOnly==true?"GUEST_EXTRA_PASS ":"GUEST_BAND_PASS ")+name);
             }
             finally{Object.DestroyImmediate(root);}
         }
@@ -246,6 +260,75 @@ namespace Editor
                 }
                 finally{Object.DestroyImmediate(root);}
             }
+        }
+
+        public static void InspectFaces()
+        {
+            foreach(var name in Names)
+            {
+                var prefab=AssetDatabase.LoadAssetAtPath<GameObject>(Folder+"/"+name+"/Generated/"+name+".prefab");
+                var root=Object.Instantiate(prefab);
+                try
+                {
+                    var rig=root.GetComponent<Animator>();var head=rig.GetBoneTransform(HumanBodyBones.Head);
+                    foreach(var bone in head.GetComponentsInChildren<Transform>())
+                    {
+                        int count=0;Vector3 sum=Vector3.zero;
+                        foreach(var renderer in root.GetComponentsInChildren<SkinnedMeshRenderer>())
+                        {
+                            int index=Array.IndexOf(renderer.bones,bone);if(index<0)continue;
+                            var mesh=renderer.sharedMesh;var weights=mesh.boneWeights;var vertices=mesh.vertices;
+                            for(int i=0;i<weights.Length;i++)if(weights[i].boneIndex0==index&&weights[i].weight0>0.5f)
+                            {count++;sum+=renderer.transform.TransformPoint(vertices[i]);}
+                        }
+                        Debug.Log($"BAND_FACE_BONE {name} {bone.name} parent={bone.parent?.name} weighted={count} point={bone.position} centre={(count>0?sum/count:Vector3.zero)}");
+                    }
+                    foreach(var renderer in root.GetComponentsInChildren<SkinnedMeshRenderer>())
+                    {
+                        var mesh=renderer.sharedMesh;
+                        Debug.Log($"BAND_FACE_SHAPES {name} {renderer.name}: "+string.Join("|",Enumerable.Range(0,mesh.blendShapeCount).Select(mesh.GetBlendShapeName)));
+                    }
+                    if(Environment.GetEnvironmentVariable("YARG_FACE_PREVIEWS")=="1")
+                    {
+                        using var mouth=new YARG.Venue.Characters.BandMouthAnimation(rig);
+                        foreach(float amount in new[]{0f,1f})
+                        {
+                            mouth.Apply(amount);RenderFace(root,rig,name,amount);
+                        }
+                    }
+                }
+                finally{Object.DestroyImmediate(root);}
+            }
+            BandSkinChecks.CheckRules();
+        }
+
+        private static void RenderFace(GameObject source,Animator rig,string name,float amount)
+        {
+            var preview=new GameObject("CPU face preview");var meshes=new List<Mesh>();
+            try
+            {
+                foreach(var renderer in source.GetComponentsInChildren<SkinnedMeshRenderer>().Where(r=>r.enabled&&r.gameObject.activeInHierarchy))
+                {
+                    var original=renderer.sharedMesh;var mesh=Object.Instantiate(original);meshes.Add(mesh);
+                    var matrices=renderer.bones.Select((b,i)=>b.localToWorldMatrix*original.bindposes[i]).ToArray();
+                    var vertices=original.vertices;var weights=original.boneWeights;
+                    mesh.vertices=vertices.Select((v,i)=>
+                    {
+                        var w=weights[i];return matrices[w.boneIndex0].MultiplyPoint3x4(v)*w.weight0+
+                            matrices[w.boneIndex1].MultiplyPoint3x4(v)*w.weight1+
+                            matrices[w.boneIndex2].MultiplyPoint3x4(v)*w.weight2+
+                            matrices[w.boneIndex3].MultiplyPoint3x4(v)*w.weight3;
+                    }).ToArray();mesh.RecalculateBounds();mesh.RecalculateNormals();
+                    var obj=new GameObject(renderer.name);obj.transform.SetParent(preview.transform,false);
+                    obj.AddComponent<MeshFilter>().sharedMesh=mesh;obj.AddComponent<MeshRenderer>().sharedMaterials=renderer.sharedMaterials;
+                }
+                var head=rig.GetBoneTransform(HumanBodyBones.Head);
+                var centre=head.position+(head.position-rig.GetBoneTransform(HumanBodyBones.Hips).position).normalized*0.1f;
+                preview.transform.localScale=Vector3.one*4;preview.transform.position=Vector3.up*0.9f-centre*4;
+                var output=Path.Combine(Environment.GetEnvironmentVariable("YARG_GUEST_OUTPUT"),name);Directory.CreateDirectory(output);
+                OsrsCharacterBuilder.Render(preview,Path.Combine(output,amount>0?"mouth-open.png":"mouth-closed.png"));
+            }
+            finally{Object.DestroyImmediate(preview);foreach(var mesh in meshes)Object.DestroyImmediate(mesh);}
         }
     }
 }

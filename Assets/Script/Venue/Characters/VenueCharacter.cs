@@ -131,6 +131,7 @@ namespace YARG.Venue.Characters
 
         [NonSerialized]
         public bool HatIsOpen;
+        public float VocalMouthOpen => Type==CharacterType.Vocals&&_characterManager!=null ? _characterManager.VocalMouthOpen : 0;
 
         public virtual void Initialize(CharacterManager characterManager)
         {
