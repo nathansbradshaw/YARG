@@ -19,8 +19,11 @@ namespace YARG.Venue.Characters
         private Transform _sourceHips, _targetHips;
         private ArmGrip[] _grips;
         private Animator _sourceAnimator;
+        private VenueCharacter _sourceCharacter;
+        private BandFingerGrips _fingerGrips;
         private bool _originalRootMotion;
         private BandHandProps _handProps;
+        private BandMouthAnimation _mouth;
         private readonly List<Renderer> _hidden = new();
         public static string Folder => Path.Combine(CustomContentManager.CustomizationDirectory, "characters", "band");
 
@@ -48,14 +51,16 @@ namespace YARG.Venue.Characters
                 int j = UnityEngine.Random.Range(0, i + 1);
                 (models[i], models[j]) = (models[j], models[i]);
             }
-            int index = 0;
+            var used=new HashSet<GameObject>();
             foreach (var actor in venue.GetComponentsInChildren<VenueCharacter>())
             {
                 if (actor.Type == VenueCharacter.CharacterType.Vocals &&
                     !string.IsNullOrEmpty(SettingsManager.Settings.CustomVocalsCharacter.Value)) continue;
                 var rig = actor.GetComponent<Animator>();
                 if (!actor.isActiveAndEnabled || rig?.avatar == null || !rig.isHuman || actor.GetComponent<BandCharacterSkin>() != null) continue;
-                var model = models[index++ % models.Count];
+                var model = PickForRole(models,used,actor.Type);
+                if(model==null)continue;
+                used.Add(model);
                 var body = Instantiate(model, actor.transform);
                 try
                 {
@@ -72,6 +77,8 @@ namespace YARG.Venue.Characters
 
         public static BandCharacterSkin Attach(Animator source, GameObject body)
         {
+            var actor=source.GetComponent<VenueCharacter>();
+            if(actor!=null&&!CanPlay(body,actor.Type))throw new ArgumentException("Band model does not support role "+actor.Type);
             var target = body.GetComponent<Animator>();
             if (target?.avatar == null || !target.avatar.isValid || !target.avatar.isHuman)
                 throw new ArgumentException("Band skins need a valid humanoid Avatar");
@@ -92,6 +99,8 @@ namespace YARG.Venue.Characters
             try
             {
                 follower._sourceAnimator=source;
+                follower._sourceCharacter=actor;
+                if(actor!=null)follower._fingerGrips=new BandFingerGrips(target,actor.Type);
                 follower._originalRootMotion=source.applyRootMotion;
                 source.applyRootMotion=false;
                 follower._sourceHips=source.GetBoneTransform(HumanBodyBones.Hips);
@@ -104,6 +113,11 @@ namespace YARG.Venue.Characters
                 follower._sourcePose = new HumanPoseHandler(source.avatar, source.transform);
                 follower._targetPose = new HumanPoseHandler(target.avatar, target.transform);
                 follower._handProps=new BandHandProps(source,target,body.transform,follower._hidden);
+                if(actor?.Type==VenueCharacter.CharacterType.Vocals)
+                {
+                    follower._mouth=new BandMouthAnimation(target);
+                    YargLogger.LogInfo($"Band mouth animation: {body.name} supported={follower._mouth.IsSupported}");
+                }
                 follower.CopyPose();
                 foreach (var renderer in source.GetComponentsInChildren<SkinnedMeshRenderer>(true))
                 {
@@ -124,6 +138,7 @@ namespace YARG.Venue.Characters
             transform.localPosition=Vector3.zero;
             transform.localRotation=Quaternion.identity;
             _sourcePose.GetHumanPose(ref _pose);
+            _fingerGrips?.Apply(ref _pose);
             _targetPose.SetHumanPose(ref _pose);
             _targetPose.GetHumanPose(ref _targetPoseSample);
             transform.rotation=(_pose.bodyRotation*Quaternion.Inverse(_targetPoseSample.bodyRotation))*transform.rotation;
@@ -133,6 +148,26 @@ namespace YARG.Venue.Characters
             transform.position+=_sourceHips.position-_targetHips.position;
             foreach(var grip in _grips)grip.Solve();
             _handProps?.Update();
+            _mouth?.Apply(_sourceCharacter!=null?_sourceCharacter.VocalMouthOpen:0);
+        }
+
+        public static bool CanPlay(GameObject model,VenueCharacter.CharacterType role)
+        {
+            var options=model.GetComponent<BandModelOptions>();
+            if(options!=null&&options.ExtrasOnly)return false;
+            return options==null||options.AllowedRoles==null||options.AllowedRoles.Length==0||Array.IndexOf(options.AllowedRoles,role)>=0;
+        }
+
+        public static GameObject PickForRole(IEnumerable<GameObject> models,HashSet<GameObject> used,VenueCharacter.CharacterType role)
+        {
+            GameObject fallback=null;
+            foreach(var model in models)
+            {
+                if(!CanPlay(model,role))continue;
+                if(!used.Contains(model))return model;
+                fallback??=model;
+            }
+            return fallback;
         }
 
         private sealed class ArmGrip
@@ -187,6 +222,8 @@ namespace YARG.Venue.Characters
             _sourcePose=null;_targetPose=null;
             _handProps?.Dispose();
             _handProps=null;
+            _mouth?.Dispose();_mouth=null;
+            _fingerGrips=null;_sourceCharacter=null;
             if(_sourceAnimator!=null)_sourceAnimator.applyRootMotion=_originalRootMotion;
             _sourceAnimator=null;
             foreach (var renderer in _hidden) if (renderer != null) renderer.enabled = true;

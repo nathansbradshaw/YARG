@@ -14,7 +14,7 @@ namespace Editor
     {
         private const string RigPath = "Assets/LocalCharacterBuild/ExistingRig/rig.fbx";
         private sealed class SourcePart {public int id,start,count;}
-        private sealed class FitProfile {public bool female,weldSeams;public float rigScale=1,torsoBottom,torsoTop;public int vocalPropModel;public Dictionary<int,int> partGroups;public Dictionary<int,string> aliases,parents;}
+        private sealed class FitProfile {public bool female,weldSeams;public float rigScale=1,torsoBottom,torsoTop;public int vocalPropModel;public string[] roles;public Dictionary<int,int> partGroups;public Dictionary<int,string> aliases,parents;}
         private sealed class SourceMesh {public float[][] positions, uvs; public int[] groups;public SourcePart[] parts;}
         public static void InspectParts()
         {
@@ -209,6 +209,8 @@ namespace Editor
                 var visual=new GameObject("Original NPC mesh");visual.transform.SetParent(root.transform,false);
                 var renderer=visual.AddComponent<SkinnedMeshRenderer>();renderer.sharedMesh=mesh;renderer.sharedMaterial=material;
                 renderer.bones=skinBones;renderer.rootBone=bones["Spine"];renderer.updateWhenOffscreen=true;
+                if(profile?.roles?.Length>0)
+                    root.AddComponent<BandModelOptions>().AllowedRoles=profile.roles.Select(Enum.Parse<VenueCharacter.CharacterType>).ToArray();
                 if(profile?.vocalPropModel>0)
                 {
                     var propData=JsonConvert.DeserializeObject<SourceMesh>(File.ReadAllText(Path.Combine(input,"vocal-prop.json")));
@@ -256,7 +258,7 @@ namespace Editor
                 if(manifest==null)throw new InvalidOperationException("Existing rig bundle export failed");
                 Environment.SetEnvironmentVariable("YARG_BAND_MODEL",Path.Combine(output,bundleName));
                 BandSkinChecks.Run();
-                Debug.Log($"EXISTING_OSRS_RIG_PASS {name}: valid humanoid; {skinBones.Length} original weighted bones; original groups with waist blend; four band roles");
+                Debug.Log($"EXISTING_OSRS_RIG_PASS {name}: valid humanoid; {skinBones.Length} original weighted bones; original groups with waist blend; supported band roles");
             }
             finally {UnityEngine.Object.DestroyImmediate(root);if(temporary!=null)UnityEngine.Object.DestroyImmediate(temporary);}
         }

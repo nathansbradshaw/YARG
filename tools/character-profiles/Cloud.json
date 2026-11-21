@@ -24,5 +24,11 @@
   },
   "excludeWeightedBones": [
     "n_buki_r"
+  ],
+  "roles": [
+    "Bass",
+    "Guitar",
+    "Drums",
+    "Keys"
   ]
 }

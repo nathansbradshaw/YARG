@@ -78,7 +78,8 @@ rustc --edition=2021 --test tools/osrs_cache_export.rs -o /tmp/osrs-cache-tests
 /tmp/osrs-cache-tests
 ```
 
-`Build` checks all four band roles for each NPC with `BandSkinChecks.Run`.
+`Build` checks all allowed band roles for each NPC with `BandSkinChecks.Run`.
+Singer-only profiles such as Sandwich Lady must reject the other roles safely.
 It also checks that the left limbs map to negative X and that neutral elbows bend
 forward, matching the authored venue's humanoid pose. This guards against the
 reversed left/right mapping that initially bent the imported arms backward.

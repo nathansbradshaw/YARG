@@ -21,5 +21,6 @@
     "chr_Shadow_HD_fur02": "chr_shadow_fur_dif_HD.dds",
     "chr_Shadow_HD_fur01": "chr_shadow_fur_dif_HD.dds"
   },
-  "openEyelids": true
+  "openEyelids": true,
+  "extrasOnly": true
 }

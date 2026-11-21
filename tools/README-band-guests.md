@@ -1,13 +1,32 @@
 # Additional band characters
 
 Keep **Shuffle Custom Band** enabled; the existing loader mixes compatible
-`.yargchar` files between songs. Sonic, Sora, Druid and Duke Horacio extend the
-original Hans, Cook and Father Aereck cast.
+`.yargchar` files between songs. The active roster has 13 band characters.
+Sonic, Shadow, Knuckles and Tails are kept separately as extras because their
+large hands do not suit the instruments. Their bundles belong in
+`custom/characters/extras`; crowd placement is not implemented yet.
 
 The expanded build profiles add **Wise Old Man, Nieve, Vannaka, Duradel,
 Krystilia, Sandwich Lady, Shadow, Knuckles, Tails and Wind-Up Cloud**.
 Sandwich Lady uses her original baguette as a vocal microphone. That custom prop
 requires the matching player update; other new bundles use the existing loader.
+
+Sandwich Lady is **vocals only**. Wind-Up Cloud is **instruments only** because
+that model has a rigid head. Embedded `BandModelOptions` enforce these restrictions
+both during shuffled selection and direct attachment. Extras-only bundles are
+rejected for every band role, even if copied into the band folder accidentally.
+
+Sora's existing lower-mouth control follows actual vocal note onsets and lengths,
+closes during rests, and seeks with the song clock. This is basic mouth movement,
+not phoneme recognition. Models without facial controls cannot gain lip sync just
+from an ordinary body rig. Named jaw/lip controls and common mouth blendshapes are
+supported for compatible future guests.
+
+Fingered humanoids retain authored finger animation, with minimum grip poses for
+microphones, drumsticks, picks and instrument necks. The singer's free hand keeps
+its gestures. Importing uses Unity's canonical human bone names: finger names
+contain spaces and cannot be supplied as raw `HumanBodyBones` enum names. Every
+requested bone mapping is checked after avatar creation.
 
 ## Build inputs
 
@@ -30,14 +49,18 @@ image-space V orientation, and opens Sonic's authored upper eyelids.
 
 Run Unity batch mode with `-executeMethod Editor.GuestCharacterBuilder.Build`,
 `YARG_GUEST_OUTPUT=/absolute/local/output`, and `YARG_BAND_VENUE=/path/to/venue.yarground`.
-Each bundle must pass all four `BandSkinChecks` roles before installation.
+Each bundle must pass every allowed `BandSkinChecks` role before installation;
+forbidden roles must reject attachment. Extras must reject all band roles.
 
-Set `YARG_GUEST_NAMES='Shadow|Knuckles|Tails|Cloud'` for the expanded guests.
+Set `YARG_GUEST_NAMES='Sora|Cloud'` for the current band guests, or
+`YARG_GUEST_NAMES='Sonic|Shadow|Knuckles|Tails'` for the extras.
 Their explicit JSON profiles in `tools/character-profiles` name source files,
 existing joints, axis corrections and textures. Original skin weights are retained.
 Cloud's source sword triangles are omitted from the band copy by their original
 weapon-bone weights; the downloaded source remains intact. Never run scripts
 bundled with downloaded model archives.
+Profiles can set `roles`, `extrasOnly`, `mouthLower`, `mouthUpper` and `mouthTravel`.
+The mouth arrays name existing source transforms; they do not create new bones.
 
 For additional OSRS NPCs, set `YARG_NPC_NAMES='Druid-3258|Duke_Horacio-815'` with
 `YARG_NPC_ROOT`, `YARG_BAND_VENUE`, and `YARG_OSRS_WAIST_CHECK=1`, then execute
@@ -61,6 +84,11 @@ limits are not applied to the differently proportioned game guests.
 Static source previews were inspected after texture/eyelid corrections.
 Sandwich Lady's prop passes mesh/material identity, palm attachment, head aim
 and vocals-only visibility checks. Her source model has no facial rig for lip sync.
+Updated checks cover restricted casting, extras exclusion, note/rest/seek mouth
+timing, Sora's visible mouth vertices, closed-pose restoration and repeated-update
+drift. Finger checks verify that fingertips move toward the held-object palms.
+Sora passed those checks in all four roles in both venues after its finger-map
+correction. Exact finger-to-instrument surface contact still needs visual review.
 
 Guard 3010 was rejected after its authored equipment/arm pose distorted under this
 rig. The unrigged Sonic Adventure candidate was also rejected. Neither is installed.
