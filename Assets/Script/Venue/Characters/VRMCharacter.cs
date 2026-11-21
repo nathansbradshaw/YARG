@@ -292,7 +292,9 @@ namespace YARG.Venue.Characters
 
         private void OnBecameInvisible()
         {
-            if (!Application.isPlaying)
+            // A camera cut must not teleport an actor whose replacement body is
+            // rendered independently of the original visibility proxy.
+            if (!Application.isPlaying || GetComponentInChildren<BandCharacterSkin>() != null)
             {
                 return;
             }
