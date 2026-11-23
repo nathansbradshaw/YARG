@@ -168,6 +168,7 @@ namespace YARG.Gameplay.Player
 
             var engine = new YargVocalsEngine(NoteTrack, SyncTrack, EngineParams, Player.Profile.IsBot);
             EngineContainer = GameManager.EngineManager.Register(engine, NoteTrack.Instrument, Player.Profile.HarmonyIndex, _chart, Player.RockMeterPreset);
+            EngineContainer.ExcludeFromFailMeter = Player.Profile.IsKaraoke;
 
             engine.OnComboIncrement += OnComboIncrement;
             engine.OnComboReset += OnComboReset;

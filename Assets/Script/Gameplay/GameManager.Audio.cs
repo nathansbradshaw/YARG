@@ -97,6 +97,14 @@ namespace YARG.Gameplay
                 return;
             }
 
+            if (YargPlayers.Any(player => !player.SittingOut && player.Profile.IsKaraoke))
+            {
+                foreach (var channel in _mixer.Channels)
+                {
+                    if (channel.Stem == SongStem.Vocals) channel.SetMuted(true);
+                }
+            }
+
             _backgroundStem = SongStem.Song;
             foreach (var channel in _mixer.Channels)
             {

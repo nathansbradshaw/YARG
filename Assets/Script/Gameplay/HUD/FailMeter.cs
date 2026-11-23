@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using DG.Tweening;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -82,7 +83,7 @@ namespace YARG.Gameplay.HUD
         {
             _gameManager = gameManager;
             _engineManager = engineManager;
-            _players.AddRange(engineManager.Engines);
+            _players.AddRange(engineManager.Engines.Where(player => !player.ExcludeFromFailMeter));
 
             _playerSliders = new Slider[_players.Count];
             _needleSliders = new Slider[_players.Count];
