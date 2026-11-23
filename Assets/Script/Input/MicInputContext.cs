@@ -1,8 +1,7 @@
 ﻿using System.Collections.Generic;
-using YARG.Audio;
+using YARG.Audio.BASS;
 using YARG.Core.Audio;
 using YARG.Core.Input;
-using YARG.Gameplay;
 
 namespace YARG.Input
 {
@@ -10,13 +9,12 @@ namespace YARG.Input
     {
         public readonly MicDevice Device;
 
-        private readonly GameManager _gameManager;
+        private readonly bool _dryMonitoring;
 
-        public MicInputContext(MicDevice device, GameManager gameManager)
+        public MicInputContext(MicDevice device, bool dryMonitoring)
         {
             Device = device;
-
-            _gameManager = gameManager;
+            _dryMonitoring = dryMonitoring;
         }
 
         /// <summary>
@@ -24,6 +22,10 @@ namespace YARG.Input
         /// </summary>
         public void Start()
         {
+            if (_dryMonitoring && Device is BassMicDevice mic)
+            {
+                mic.SetMonitoringReverb(false);
+            }
             Device.ClearOutputQueue();
             Device.IsRecordingOutput = true;
         }
@@ -59,6 +61,10 @@ namespace YARG.Input
         public void Stop()
         {
             Device.IsRecordingOutput = false;
+            if (_dryMonitoring && Device is BassMicDevice mic)
+            {
+                mic.SetMonitoringReverb(true);
+            }
         }
     }
 }

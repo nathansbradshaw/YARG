@@ -32,18 +32,8 @@ namespace YARG.Audio.BASS
                 return null;
             }
 
-            // Add reverb to the monitor playback
-            int reverbHandle = BassHelpers.FXAddParameters(monitorPlaybackHandle, EffectType.Freeverb, REVERB_PARAMETERS, 1);
-            if (reverbHandle == 0)
-            {
-                YargLogger.LogError("Failed to add reverb to monitor stream!");
-                Bass.StreamFree(monitorPlaybackHandle);
-                return null;
-            }
-
             // Apply gain to the playback
-            int applyGain = Bass.ChannelSetDSP(monitorPlaybackHandle, ApplyGain);
-            if (applyGain == 0)
+            if (Bass.ChannelSetDSP(monitorPlaybackHandle, ApplyGain) == 0)
             {
                 YargLogger.LogFormatError("Failed to add gain to monitor stream: {0}!", Bass.LastError);
                 Bass.StreamFree(monitorPlaybackHandle);
@@ -54,25 +44,44 @@ namespace YARG.Audio.BASS
             if (!Bass.ChannelPlay(monitorPlaybackHandle))
             {
                 YargLogger.LogFormatError("Failed to start monitor stream: {0}!", Bass.LastError);
-                Bass.StreamFree(applyGain);
                 Bass.StreamFree(monitorPlaybackHandle);
                 return null;
             }
 
-            return new MonitorPlaybackHandle(monitorPlaybackHandle, reverbHandle, applyGain);
+            var playback = new MonitorPlaybackHandle(monitorPlaybackHandle);
+            playback.SetReverb(true);
+            return playback;
         }
 
         public readonly int Handle;
-        private readonly int _reverbHandle;
-        private readonly int _applyGain;
+        private int _reverbHandle;
 
         private bool _disposed;
 
-        private MonitorPlaybackHandle(int handle, int reverb, int applyGain)
+        private MonitorPlaybackHandle(int handle)
         {
             Handle = handle;
-            _reverbHandle = reverb;
-            _applyGain = applyGain;
+        }
+
+        public void SetReverb(bool enabled)
+        {
+            if (_disposed || enabled == (_reverbHandle != 0))
+            {
+                return;
+            }
+
+            if (enabled)
+            {
+                _reverbHandle = BassHelpers.FXAddParameters(Handle, EffectType.Freeverb, REVERB_PARAMETERS, 1);
+            }
+            else if (Bass.ChannelRemoveFX(Handle, _reverbHandle))
+            {
+                _reverbHandle = 0;
+            }
+            else
+            {
+                YargLogger.LogFormatError("Failed to remove reverb from the microphone monitor: {0}", Bass.LastError);
+            }
         }
 
         private static void ApplyGain(int handle, int channel, IntPtr buffer, int length, IntPtr user)
@@ -85,7 +94,6 @@ namespace YARG.Audio.BASS
             if (!_disposed)
             {
                 Bass.StreamFree(Handle);
-                Bass.StreamFree(_applyGain);
                 _disposed = true;
             }
         }
@@ -327,6 +335,8 @@ namespace YARG.Audio.BASS
                 YargLogger.LogFormatError("Failed to set volume attribute: {0}", Bass.LastError);
             }
         }
+
+        internal void SetMonitoringReverb(bool enabled) => _monitorHandle.SetReverb(enabled);
 
         public override SerializedMic Serialize()
         {
