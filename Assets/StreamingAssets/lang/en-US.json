@@ -494,6 +494,23 @@
                 "FullCombos": "Full Combos"
             }
         },
+        "ProfileCalibration": {
+            "Title": "Calibrate Input",
+            "SelectInstrument": "Select a human instrument profile in the Profiles list first.",
+            "ConnectInstrument": "Connect this profile and assign its instrument, then try again.",
+            "Instructions": "Profile: {0}\n{1}\nWait through four count-in clicks, then play once per click.\nCurrent input offset: {2} ms.",
+            "Strum": "Strum on each click.",
+            "PickString": "Pick the same string on each click.",
+            "HitPad": "Hit the same pad or pedal on each click.",
+            "TapNote": "Tap the same note or lane on each click.",
+            "CountIn": "Get ready. Listen for the four count-in clicks.\n{0}",
+            "Playing": "{0}\nKeep playing until the clicks stop.",
+            "Inconsistent": "There weren't enough evenly timed inputs to measure an offset. Try again and play once per click.",
+            "Result": "Suggested input offset: {0:+0;-0;0} ms\nCurrent input offset: {1} ms\nSave applies the suggestion to this profile.",
+            "Retry": "Retry",
+            "AudioError": "Couldn't play the calibration clicks. Check the audio output and try again.",
+            "SaveError": "Couldn't save the profile. Retry saving or cancel to keep the previous offset."
+        },
         "ProfileList": {
             "Name": "Profiles",
             "ActiveProfiles" : "Active Profiles",

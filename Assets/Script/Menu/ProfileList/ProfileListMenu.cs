@@ -49,6 +49,7 @@ namespace YARG.Menu.ProfileList
 
             Navigator.Instance.PushScheme(new NavigationScheme(new()
             {
+                new NavigationScheme.Entry(MenuAction.Yellow, "Menu.ProfileCalibration.Title", CalibrateSelectedProfile),
                 new NavigationScheme.Entry(MenuAction.Red, "Menu.Common.Back", () => MenuManager.Instance.PopMenu(), hide: true),
             }, true));
 
@@ -195,6 +196,13 @@ namespace YARG.Menu.ProfileList
             {
                 profileView.SetSelected(true, SelectionOrigin.Programmatically);
             }
+        }
+
+        private void CalibrateSelectedProfile()
+        {
+            var profile = GetSelectedProfile();
+            Calibrator.ProfileInputCalibration.Show(profile, () =>
+                _profileSidebar.RefreshInputCalibration(profile));
         }
 
         public void OnPlayerAdded(YargPlayer player)

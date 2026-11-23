@@ -425,6 +425,12 @@ namespace YARG.Menu.ProfileList
             _inputCalibrationField.text = _profile.InputCalibrationMilliseconds.ToString();
         }
 
+        internal void RefreshInputCalibration(YargProfile profile)
+        {
+            if (_profile == profile)
+                _inputCalibrationField.SetTextWithoutNotify(profile.InputCalibrationMilliseconds.ToString());
+        }
+
         public void ChangeLeftyFlip()
         {
             _profile.LeftyFlip = _leftyFlipToggle.isOn;
