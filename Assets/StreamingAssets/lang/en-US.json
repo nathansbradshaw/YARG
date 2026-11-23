@@ -269,6 +269,8 @@
             }
         },
         "DifficultySelect": {
+            "Karaoke": "Karaoke",
+            "WarningKaraokeVocals": "Original vocals can't be muted in one or more selected songs because separate vocal audio is unavailable. Karaoke still works with the original singer audible.",
             "Instrument": "Instrument",
             "Difficulty": "Difficulty",
             "Harmony": "Harmony",

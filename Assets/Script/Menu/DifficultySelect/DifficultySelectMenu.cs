@@ -237,6 +237,14 @@ namespace YARG.Menu.DifficultySelect
                 ShowWarning(null);
             }
 
+            if (player.Profile.IsKaraoke && _songList.Any(song => !song.HasSeparateVocalAudio))
+            {
+                var warning = Localize.Key("Menu.DifficultySelect.WarningKaraokeVocals");
+                if (player.IsMissingMicrophone)
+                    warning = Localize.Key("Menu.DifficultySelect.WarningVocalistNoMicrophone") + "\n" + warning;
+                ShowWarning(warning);
+            }
+
             // Only show all these options if there are instruments available
             if (_possibleInstruments.Count > 0)
             {
@@ -262,7 +270,8 @@ namespace YARG.Menu.DifficultySelect
                 });
 
                 CreateItem(LocalizeHeader("Difficulty"),
-                    player.Profile.CurrentDifficulty.ToLocalizedName(),
+                    player.Profile.IsKaraoke ? Localize.Key("Menu.DifficultySelect.Karaoke") :
+                        player.Profile.CurrentDifficulty.ToLocalizedName(),
                     _lastMenuState == State.Difficulty, () =>
                 {
                     _menuState = State.Difficulty;
@@ -394,11 +403,22 @@ namespace YARG.Menu.DifficultySelect
 
         private void CreateDifficultyMenu()
         {
+            if (CurrentPlayer.Profile.GameMode == GameMode.Vocals)
+            {
+                CreateItem(Localize.Key("Menu.DifficultySelect.Karaoke"), CurrentPlayer.Profile.IsKaraoke, () =>
+                {
+                    // Karaoke reuses the full vocal chart and the current pitch-scoring difficulty.
+                    CurrentPlayer.Profile.KaraokeMode = true;
+                    _menuState = State.Main;
+                    UpdateForPlayer();
+                });
+            }
             foreach (var difficulty in _possibleDifficulties)
             {
-                bool selected = CurrentPlayer.Profile.CurrentDifficulty == difficulty;
+                bool selected = !CurrentPlayer.Profile.IsKaraoke && CurrentPlayer.Profile.CurrentDifficulty == difficulty;
                 CreateItem(difficulty.ToLocalizedName(), selected, () =>
                 {
+                    CurrentPlayer.Profile.KaraokeMode = false;
                     CurrentPlayer.Profile.CurrentDifficulty
                         = CurrentPlayer.Profile.DifficultyFallback
                         = difficulty;

@@ -138,7 +138,8 @@ namespace YARG.Menu.ScoreScreen
             _playerName.text = Player.Profile.Name;
 
             _instrument.text = Player.Profile.CurrentInstrument.ToLocalizedName();
-            _difficulty.text = Player.Profile.CurrentDifficulty.ToDisplayName();
+            _difficulty.text = Player.Profile.IsKaraoke ? Localize.Key("Menu.DifficultySelect.Karaoke") :
+                Player.Profile.CurrentDifficulty.ToDisplayName();
 
             if (_difficultyRing != null)
             {
