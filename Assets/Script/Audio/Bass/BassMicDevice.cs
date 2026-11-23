@@ -15,6 +15,8 @@ namespace YARG.Audio.BASS
 {
     internal class MonitorPlaybackHandle : IDisposable
     {
+        private const int MAX_QUEUED_MILLISECONDS = 40;
+
         private static readonly ReverbParameters REVERB_PARAMETERS = new()
         {
             fDryMix = 0.3f, fWetMix = 1f, fRoomSize = 0.4f, fDamp = 0.7f
@@ -30,6 +32,12 @@ namespace YARG.Audio.BASS
             {
                 YargLogger.LogFormatError("Failed to create monitor stream: {0}!", Bass.LastError);
                 return null;
+            }
+
+            // Consume live input on the output device's schedule rather than prebuffering it.
+            if (!Bass.ChannelSetAttribute(monitorPlaybackHandle, ChannelAttribute.Buffer, 0))
+            {
+                YargLogger.LogFormatWarning("Could not disable microphone playback buffering: {0}", Bass.LastError);
             }
 
             // Apply gain to the playback
@@ -48,19 +56,43 @@ namespace YARG.Audio.BASS
                 return null;
             }
 
-            var playback = new MonitorPlaybackHandle(monitorPlaybackHandle);
+            var playback = new MonitorPlaybackHandle(monitorPlaybackHandle, sampleRate);
             playback.SetReverb(true);
             return playback;
         }
 
         public readonly int Handle;
+        private readonly int _maxQueuedBytes;
         private int _reverbHandle;
 
         private bool _disposed;
 
-        private MonitorPlaybackHandle(int handle)
+        private MonitorPlaybackHandle(int handle, int sampleRate)
         {
             Handle = handle;
+            _maxQueuedBytes = sampleRate * MAX_QUEUED_MILLISECONDS / 1000 * sizeof(short);
+        }
+
+        public void Push(IntPtr buffer, int length)
+        {
+            // After an output stall, play the newest input rather than catching up on a delayed voice.
+            if (length > _maxQueuedBytes)
+            {
+                buffer = IntPtr.Add(buffer, length - _maxQueuedBytes);
+                length = _maxQueuedBytes;
+            }
+
+            int queued = Bass.StreamPutData(Handle, IntPtr.Zero, 0);
+            if (queued > _maxQueuedBytes - length && !Bass.ChannelSetPosition(Handle, 0, PositionFlags.Bytes))
+            {
+                YargLogger.LogFormatWarning("Could not clear delayed microphone playback: {0}", Bass.LastError);
+                return;
+            }
+
+            if (Bass.StreamPutData(Handle, buffer, length) == -1)
+            {
+                YargLogger.LogFormatError("Error pushing data to monitor stream: {0}", Bass.LastError);
+            }
         }
 
         public void SetReverb(bool enabled)
@@ -351,11 +383,7 @@ namespace YARG.Audio.BASS
 
         private bool ProcessRecordData(int handle, IntPtr buffer, int length, IntPtr user)
         {
-            // Copies the data from the recording buffer to the monitor playback buffer.
-            if (Bass.StreamPutData(_monitorHandle.Handle, buffer, length) == -1)
-            {
-                YargLogger.LogFormatError("Error pushing data to monitor stream: {0}", Bass.LastError);
-            }
+            _monitorHandle?.Push(buffer, length);
 
             // Wait for initialization to complete before processing data
             if (!IsRecordingOutput)
@@ -458,8 +486,8 @@ namespace YARG.Audio.BASS
 
         protected override void DisposeUnmanagedResources()
         {
-            _monitorHandle.Dispose();
             _recordHandle.Dispose();
+            _monitorHandle.Dispose();
             Bass.CurrentRecordingDevice = _deviceId;
             Bass.RecordFree();
         }
