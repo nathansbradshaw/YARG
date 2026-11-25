@@ -73,6 +73,10 @@ namespace YARG.Gameplay.Player
                 return;
             }
 
+            if (player.Profile.IsKaraoke && !player.IsReplay)
+            {
+                player.Profile.CurrentDifficulty = Difficulty.Expert;
+            }
             base.Initialize(index, player, chart, lastHighScore);
 
             // Save the chart
@@ -116,6 +120,7 @@ namespace YARG.Gameplay.Player
 
             hud.Initialize(player.EnginePreset);
             _hud = hud;
+            _hud.SetHUDShowing(!player.Profile.IsKaraoke);
 
             percussionTrack.Initialize(NoteTrack.Notes);
             _percussionTrack = percussionTrack;
@@ -125,7 +130,7 @@ namespace YARG.Gameplay.Player
             // Create and start an input context for the mic
             if (!Player.IsReplay && player.Bindings.Microphone != null)
             {
-                _inputContext = new MicInputContext(player.Bindings.Microphone, player.Profile.IsKaraoke);
+                _inputContext = new MicInputContext(player.Bindings.Microphone);
                 _inputContext.Start();
             }
 
@@ -191,6 +196,8 @@ namespace YARG.Gameplay.Player
 
                 LastCombo = Combo;
 
+                if (Player.Profile.IsKaraoke) return;
+
                 ShowTextNotifications(isLastPhrase);
 
                 // Order is important here. ShowVocalPhraseResult() will skip showing AWESOME! if other, more important notifications are already showing.
@@ -207,7 +214,7 @@ namespace YARG.Gameplay.Player
 
             engine.OnNoteMissed += (_, _) =>
             {
-                if (LastCombo >= 2)
+                if (!Player.Profile.IsKaraoke && LastCombo >= 2)
                 {
                     GlobalAudioHandler.PlaySoundEffect(SfxSample.NoteMiss);
                 }
@@ -311,6 +318,8 @@ namespace YARG.Gameplay.Player
             UpdatePercussionPhrase(visualTime);
             UpdateSingNeedle();
 
+            if (Player.Profile.IsKaraoke) return;
+
             // Get combo meter fill
             float fill = 0f;
             if (Engine.PhraseTicksTotal != null && Engine.PhraseTicksTotal.Value != 0)
@@ -333,6 +342,8 @@ namespace YARG.Gameplay.Player
 
         protected override void OnStarPowerReady()
         {
+            if (Player.Profile.IsKaraoke) return;
+
             base.OnStarPowerReady();
             _hud.ShowNotification(TextNotificationType.StarPowerReady);
         }
@@ -424,6 +435,16 @@ namespace YARG.Gameplay.Player
             }
             else
             {
+                if (Player.Profile.IsKaraoke)
+                {
+                    // Show the detected MIDI pitch, including its octave and fractional semitone.
+                    _needleVisualContainer.SetActive(true);
+                    _hittingParticleGroup.Stop();
+                    transform.localPosition = new Vector3(0f, 0f, GameManager.VocalTrack.GetPosForPitch(Engine.PitchSang));
+                    _needleTransform.rotation = Quaternion.Euler(0f, 90f, 0f);
+                    return;
+                }
+
                 float lerpRate = NEEDLE_POS_LERP;
 
                 // Show needle
@@ -565,7 +586,7 @@ namespace YARG.Gameplay.Player
 
         private void SetPercussionMode(bool show)
         {
-            _hud.SetHUDShowing(!show);
+            _hud.SetHUDShowing(!show && !Player.Profile.IsKaraoke);
             _percussionTrack.ShowPercussionFret(show);
             _shouldHideNeedle = show;
         }
