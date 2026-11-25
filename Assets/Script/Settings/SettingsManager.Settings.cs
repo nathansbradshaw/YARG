@@ -9,6 +9,7 @@ using YARG.Core.Logging;
 using YARG.Core.Song;
 using YARG.Gameplay.HUD;
 using YARG.Helpers;
+using YARG.Input;
 using YARG.Integration;
 using YARG.Integration.RB3E;
 using YARG.Integration.Sacn;
@@ -266,7 +267,8 @@ namespace YARG.Settings
 
             public VolumeSetting PreviewVolume { get; } = new(0.25f);
             public VolumeSetting MusicPlayerVolume { get; } = new(0.15f, MusicPlayerVolumeCallback);
-            public VolumeSetting VocalMonitoring { get; } = new(0.7f, VocalMonitoringCallback);
+            public VolumeSetting VocalMonitoring { get; } = new(0.7f, RefreshVocalMonitoring);
+            public VolumeSetting KaraokeMicVolume { get; } = new(0.22f, RefreshVocalMonitoring);
 
             public IntSetting PlaybackBufferLength { get; }
                 = new(75, 0, GlobalAudioHandler.MaximumBufferLength,
@@ -815,11 +817,15 @@ namespace YARG.Settings
                 SettingsMenu.Instance.RefreshPreview();
             }
 
-            private static void VocalMonitoringCallback(float volume)
+            private static void RefreshVocalMonitoring(float _)
             {
                 foreach (var player in PlayerContainer.Players)
                 {
-                    player.Bindings.Microphone?.SetMonitoringLevel(volume);
+                    var mic = player.Bindings.Microphone;
+                    if (mic != null)
+                    {
+                        mic.SetMonitoringLevel(MicInputContext.GetMonitoringLevel(mic.IsRecordingOutput && player.Profile.IsKaraoke));
+                    }
                 }
             }
 

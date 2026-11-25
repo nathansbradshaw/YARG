@@ -89,19 +89,29 @@ namespace YARG.Gameplay
         private void LoadAudio()
         {
             _stemStates.Clear();
-            _mixer = Song.LoadAudio(GlobalVariables.State.SongSpeed, DEFAULT_VOLUME);
+            var speed = GlobalVariables.State.SongSpeed;
+            bool muteOriginalVocals = YargPlayers.Any(player => !player.SittingOut && player.Profile.IsKaraoke)
+                && Song.HasSeparateVocalAudio;
+            // Normalize the mix the player will hear. A loud muted lead should not turn down the backing.
+            _mixer = muteOriginalVocals ? Song.LoadAudio(speed, DEFAULT_VOLUME, SongStem.Vocals) : null;
+
             if (_mixer == null)
             {
-                _loadState = LoadFailureState.Error;
-                _loadFailureMessage = "Failed to load audio!";
-                return;
-            }
-
-            if (YargPlayers.Any(player => !player.SittingOut && player.Profile.IsKaraoke))
-            {
-                foreach (var channel in _mixer.Channels)
+                _mixer = Song.LoadAudio(speed, DEFAULT_VOLUME);
+                if (_mixer == null)
                 {
-                    if (channel.Stem == SongStem.Vocals) channel.SetMuted(true);
+                    _loadState = LoadFailureState.Error;
+                    _loadFailureMessage = "Failed to load audio!";
+                    return;
+                }
+
+                // Keep vocal-only packages playable if removing their stem would leave no backing audio.
+                if (muteOriginalVocals)
+                {
+                    foreach (var channel in _mixer.Channels)
+                    {
+                        if (channel.Stem == SongStem.Vocals) channel.SetMuted(true);
+                    }
                 }
             }
 

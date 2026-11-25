@@ -117,7 +117,11 @@ namespace YARG.Audio.BASS
 
     internal class RecordingHandle : IDisposable
     {
+#if UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
+        private const int CallbackPeriodMilliseconds = 2;
+#else
         private const int CallbackPeriodMilliseconds = 3;
+#endif
         private static readonly int[] _sampleRates = { 48000, 44100, 96000, 16000 };
 
 #nullable enable
