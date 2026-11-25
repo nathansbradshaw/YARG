@@ -117,7 +117,7 @@ namespace YARG.Audio.BASS
 
 #if UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
             // Core Audio has a device buffer of two periods. Request short periods before opening the device.
-            if (!Bass.Configure(Configuration.DevicePeriod, 3))
+            if (!Bass.Configure(Configuration.DevicePeriod, 2))
             {
                 YargLogger.LogFormatWarning("Could not shorten the macOS audio device period: {0}", Bass.LastError);
             }

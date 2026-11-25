@@ -1,16 +1,19 @@
 ﻿using System.Collections.Generic;
 using YARG.Core.Audio;
 using YARG.Core.Input;
+using YARG.Settings;
 
 namespace YARG.Input
 {
     public class MicInputContext
     {
         public readonly MicDevice Device;
+        private readonly bool _karaoke;
 
-        public MicInputContext(MicDevice device)
+        public MicInputContext(MicDevice device, bool karaoke)
         {
             Device = device;
+            _karaoke = karaoke;
         }
 
         /// <summary>
@@ -20,6 +23,7 @@ namespace YARG.Input
         {
             Device.ClearOutputQueue();
             Device.IsRecordingOutput = true;
+            Device.SetMonitoringLevel(GetMonitoringLevel(_karaoke));
         }
 
         /// <summary>
@@ -53,6 +57,11 @@ namespace YARG.Input
         public void Stop()
         {
             Device.IsRecordingOutput = false;
+            Device.SetMonitoringLevel(GetMonitoringLevel(false));
         }
+
+        internal static float GetMonitoringLevel(bool karaoke) => karaoke
+            ? SettingsManager.Settings.KaraokeMicVolume.Value
+            : SettingsManager.Settings.VocalMonitoring.Value;
     }
 }

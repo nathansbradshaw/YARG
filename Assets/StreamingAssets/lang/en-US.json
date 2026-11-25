@@ -1542,6 +1542,11 @@
                 "PauseName": "Monitoring",
                 "Description": "Adjusts the feedback you hear when singing."
             },
+            "KaraokeMicVolume": {
+                "Name": "Karaoke Mic Volume",
+                "PauseName": "Karaoke Mic",
+                "Description": "Adjusts how loud your live voice is in Karaoke."
+            },
 			"VocalStreakFrequency": {
                 "Name": "Vocal Streak Frequency",
                 "Description": "Sets the frequency of phrase streak notifications for vocalists.",
