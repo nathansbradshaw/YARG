@@ -115,6 +115,13 @@ namespace YARG.Audio.BASS
             Bass.DeviceNonStop = true;
             Bass.AsyncFileBufferLength = 65536;
 
+#if UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
+            // Core Audio has a device buffer of two periods. Request short periods before opening the device.
+            if (!Bass.Configure(Configuration.DevicePeriod, 3))
+            {
+                YargLogger.LogFormatWarning("Could not shorten the macOS audio device period: {0}", Bass.LastError);
+            }
+#endif
             // This not the same as Bass.UpdatePeriod
             // If not explicitly set by the audio driver or OS, the default will be 10
             // https://www.un4seen.com/doc/#bass/BASS_CONFIG_DEV_PERIOD.html
@@ -168,7 +175,7 @@ namespace YARG.Audio.BASS
             }
 
             var info = Bass.Info;
-            PlaybackLatency = info.Latency + Bass.DeviceBufferLength + devPeriod;
+            PlaybackLatency = info.Latency + Math.Max(0, Bass.DeviceBufferLength) + devPeriod;
             MinimumBufferLength = info.MinBufferLength + Bass.UpdatePeriod;
             MaximumBufferLength = 5000;
 

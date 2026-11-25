@@ -407,8 +407,8 @@ namespace YARG.Menu.DifficultySelect
             {
                 CreateItem(Localize.Key("Menu.DifficultySelect.Karaoke"), CurrentPlayer.Profile.IsKaraoke, () =>
                 {
-                    // Karaoke reuses the full vocal chart and the current pitch-scoring difficulty.
                     CurrentPlayer.Profile.KaraokeMode = true;
+                    CurrentPlayer.Profile.CurrentDifficulty = Difficulty.Expert;
                     _menuState = State.Main;
                     UpdateForPlayer();
                 });
@@ -666,6 +666,12 @@ namespace YARG.Menu.DifficultySelect
                 {
                     _possibleDifficulties.Add(difficulty);
                 }
+            }
+
+            if (profile.IsKaraoke)
+            {
+                profile.CurrentDifficulty = Difficulty.Expert;
+                return;
             }
 
             // TODO: Handle difficulty fallback better in play a show mode
